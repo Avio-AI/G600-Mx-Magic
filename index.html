@@ -1,0 +1,1138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#080b0f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>G600 Troubleshooter</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Lato:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#080b0f; --surface:#0d1219; --panel:#111820; --panel2:#16202b; --border:#1e2d3d; --border2:#2a3d52;
+  --amber:#e8a020; --amber-dim:#7a4f08; --amber-glow:#ffc84a;
+  --cyan:#00d4e8; --cyan-dim:#004d54; --red:#e83030; --green:#20c870; --magenta:#d06cff;
+  --text:#c8d8e8; --text-dim:#6a8294; --mono:'Share Tech Mono',ui-monospace,monospace; --sans:'Lato',system-ui,sans-serif;
+  --safe-b:env(safe-area-inset-bottom,0px); --safe-t:env(safe-area-inset-top,0px);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:16px;-webkit-text-size-adjust:100%;touch-action:manipulation}
+button{font-family:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
+input,select,textarea{font-family:inherit;font-size:16px;color:var(--text);background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:10px 12px;outline:none;width:100%}
+input:focus,select:focus,textarea:focus{border-color:var(--amber-dim)}
+textarea{resize:vertical;min-height:90px;line-height:1.45}
+label{font-family:var(--mono);font-size:12px;letter-spacing:1px;color:var(--text-dim);text-transform:uppercase;display:block;margin-bottom:5px}
+.hidden{display:none!important}
+
+#app{display:flex;flex-direction:column;height:100dvh;max-width:860px;margin:0 auto;border-left:1px solid var(--border);border-right:1px solid var(--border)}
+header{padding:calc(12px + var(--safe-t)) calc(16px + env(safe-area-inset-right,0px)) 10px calc(16px + env(safe-area-inset-left,0px));background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0}
+.hrow{display:flex;align-items:center;gap:10px}
+.brand{font-family:var(--mono);color:var(--amber);font-size:17px;letter-spacing:2px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.brand .short{display:none}@media(max-width:520px){.brand .long{display:none}.brand .short{display:inline}}
+.brand small{color:var(--text-dim);font-size:11px;letter-spacing:1px;margin-left:6px}
+.iconbtn{background:var(--panel);border:1px solid var(--border);color:var(--text);border-radius:6px;height:36px;min-width:36px;padding:0 10px;font-size:14px;display:flex;align-items:center;justify-content:center;gap:6px}
+.iconbtn:active{border-color:var(--amber-dim)}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--text-dim);flex-shrink:0}
+.dot.ok{background:var(--green);box-shadow:0 0 8px var(--green)} .dot.err{background:var(--red)} .dot.busy{background:var(--amber);animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.35}}
+.badges{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.badge{font-family:var(--mono);font-size:11px;letter-spacing:1px;color:var(--text-dim);border:1px solid var(--border);border-radius:3px;padding:2px 6px}
+.badge.amber{color:var(--amber);border-color:var(--amber-dim)}
+
+main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.view{padding:16px}
+.tabs{display:flex;gap:6px;margin-bottom:14px;background:var(--surface);padding:4px;border-radius:8px;border:1px solid var(--border)}
+.tab{flex:1;background:none;border:none;color:var(--text-dim);font-weight:700;font-size:14px;padding:10px 6px;border-radius:6px}
+.tab.on{background:var(--panel2);color:var(--amber);box-shadow:inset 0 -2px 0 var(--amber)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:14px}
+.card h3{font-family:var(--mono);font-size:13px;letter-spacing:2px;color:var(--cyan);font-weight:400;margin-bottom:10px;text-transform:uppercase}
+.hint{font-size:13px;color:var(--text-dim);line-height:1.5;margin-top:6px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+@media(max-width:520px){.grid3{grid-template-columns:1fr 1fr}}
+.field{margin-bottom:10px}
+.btn{background:var(--amber);color:#000;border:none;border-radius:8px;font-weight:900;font-size:16px;padding:14px 18px;width:100%;letter-spacing:.5px}
+.btn:active{background:var(--amber-glow)} .btn:disabled{opacity:.4}
+.btn2{background:none;border:1px solid var(--border2);color:var(--text);border-radius:8px;font-weight:700;font-size:14px;padding:10px 14px}
+.btn2.small{padding:6px 10px;font-size:13px}
+.btn2.danger{border-color:#5a1a1a;color:var(--red)}
+
+/* fault autocomplete */
+.ac{position:relative}
+.aclist{position:absolute;left:0;right:0;top:100%;z-index:20;background:var(--panel2);border:1px solid var(--border2);border-radius:0 0 8px 8px;max-height:320px;overflow-y:auto;box-shadow:0 10px 30px rgba(0,0,0,.6)}
+.acitem{padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer}
+.acitem:hover,.acitem.sel{background:#1c2a38}
+.acmsg{font-family:var(--mono);font-size:14px;color:var(--amber)}
+.acmeta{font-size:12px;color:var(--text-dim);margin-top:2px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.fchip{background:var(--panel2);border:1px solid var(--amber-dim);border-radius:6px;padding:8px 10px;display:flex;gap:10px;align-items:flex-start;max-width:100%}
+.fchip .t{font-family:var(--mono);color:var(--amber);font-size:13px;word-break:break-word}
+.fchip .m{font-size:11.5px;color:var(--text-dim);margin-top:2px}
+.fchip button{background:none;border:none;color:var(--text-dim);font-size:16px;line-height:1}
+.warnnote{color:var(--amber);font-size:11.5px}
+
+.rrow{display:grid;grid-template-columns:1.4fr 1fr .7fr 32px;gap:6px;margin-bottom:6px}
+.rrow button{background:none;border:1px solid var(--border);border-radius:6px;color:var(--text-dim)}
+.qchips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.qchip{background:none;border:1px dashed var(--border2);color:var(--text-dim);border-radius:14px;padding:5px 10px;font-size:12.5px}
+.qchip:active{color:var(--amber);border-color:var(--amber-dim)}
+details.more summary{cursor:pointer;font-family:var(--mono);font-size:13px;letter-spacing:1px;color:var(--cyan);list-style:none;padding:4px 0}
+details.more summary::-webkit-details-marker{display:none}
+details.more[open] summary{margin-bottom:10px}
+
+/* chat */
+#chatView{display:flex;flex-direction:column;min-height:100%}
+#chatLog{padding:14px 16px;display:flex;flex-direction:column;gap:14px;flex:1}
+.msg{max-width:100%}
+.msg.user{align-self:flex-end;background:#13202c;border:1px solid var(--border2);border-radius:12px 12px 2px 12px;padding:10px 13px;max-width:92%;white-space:pre-wrap;font-size:14.5px;line-height:1.5}
+.msg.user .casehdr{font-family:var(--mono);color:var(--cyan);font-size:12px;letter-spacing:1px;margin-bottom:4px}
+.msg.ai{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--amber);border-radius:2px 12px 12px 12px;padding:12px 14px}
+.aitext{font-size:15px;line-height:1.6;word-wrap:break-word}
+.aitext h1,.aitext h2,.aitext h3,.aitext h4{font-family:var(--mono);font-weight:400;color:var(--amber);letter-spacing:1px;margin:14px 0 6px;font-size:14.5px;text-transform:uppercase}
+.aitext h1:first-child,.aitext h2:first-child,.aitext h3:first-child{margin-top:0}
+.aitext p{margin:6px 0} .aitext ul,.aitext ol{margin:6px 0 6px 22px} .aitext li{margin:3px 0}
+.aitext strong{color:#fff} .aitext code{font-family:var(--mono);background:var(--panel2);padding:1px 5px;border-radius:3px;color:var(--cyan);font-size:13.5px}
+.aitext pre{background:var(--panel);padding:10px;border-radius:6px;overflow-x:auto;font-family:var(--mono);font-size:13px}
+.aitext table{border-collapse:collapse;margin:8px 0;font-size:13.5px;display:block;overflow-x:auto}
+.aitext th,.aitext td{border:1px solid var(--border2);padding:5px 8px;text-align:left;vertical-align:top}
+.aitext th{background:var(--panel2);color:var(--cyan);font-weight:700}
+.aitext hr{border:none;border-top:1px solid var(--border);margin:10px 0}
+.aitext blockquote{border-left:3px solid var(--red);padding:4px 10px;background:#1a0f10;margin:8px 0}
+.cite{display:inline-block;font-family:var(--mono);font-size:12px;color:var(--cyan);background:#062a30;border:1px solid var(--cyan-dim);border-radius:3px;padding:0 5px;margin:0 1px;cursor:pointer;white-space:nowrap;vertical-align:1px}
+.cite:active{background:var(--cyan-dim)}
+.tool{font-family:var(--mono);font-size:12.5px;color:var(--text-dim);background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:6px 9px;margin:6px 0;display:flex;gap:8px;align-items:baseline;cursor:pointer}
+.tool .ic{color:var(--cyan)} .tool.run .ic{color:var(--amber);animation:pulse 1s infinite} .tool.err .ic{color:var(--red)}
+.tool .tx{flex:1;word-break:break-word} .tool .rs{color:var(--green);white-space:nowrap}
+.tooldetail{font-family:var(--mono);font-size:12px;white-space:pre-wrap;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px;max-height:260px;overflow:auto;margin:-2px 0 6px;color:var(--text-dim)}
+details.think{margin:4px 0 8px}
+details.think summary{font-family:var(--mono);font-size:12px;color:var(--magenta);cursor:pointer;letter-spacing:1px}
+details.think div{font-size:13px;color:var(--text-dim);white-space:pre-wrap;line-height:1.45;margin-top:6px;max-height:300px;overflow:auto;border-left:2px solid #3a2550;padding-left:8px}
+.usage{font-family:var(--mono);font-size:11px;color:var(--text-dim);margin-top:8px;text-align:right}
+.typing{display:inline-flex;gap:4px;padding:4px 0}.typing span{width:6px;height:6px;border-radius:50%;background:var(--amber);animation:pulse 1s infinite}.typing span:nth-child(2){animation-delay:.2s}.typing span:nth-child(3){animation-delay:.4s}
+.errbox{background:#1a0d0d;border:1px solid #5a1a1a;color:#ff9d9d;border-radius:8px;padding:10px 12px;font-size:14px;white-space:pre-wrap}
+
+#composer{position:sticky;bottom:0;background:var(--surface);border-top:1px solid var(--border);padding:8px 12px calc(10px + var(--safe-b))}
+#composer .qchips{flex-wrap:nowrap;overflow-x:auto;margin-bottom:8px;scrollbar-width:none}
+#composer .qchips::-webkit-scrollbar{display:none}
+#composer .qchip{white-space:nowrap}
+.crow{display:flex;gap:8px;align-items:flex-end}
+.crow textarea{min-height:44px;max-height:160px;resize:none;padding:11px 12px}
+.send{background:var(--amber);border:none;border-radius:8px;width:48px;height:44px;font-size:20px;color:#000;font-weight:900;flex-shrink:0}
+.send.stop{background:var(--red);color:#fff;font-size:16px}
+
+/* search results */
+.res{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:10px;cursor:pointer}
+.res:active{border-color:var(--amber-dim)}
+.res .h{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.res .mt{font-family:var(--mono);font-size:12px;color:#000;background:var(--cyan);border-radius:3px;padding:0 5px}
+.res .ttl{font-weight:700;font-size:14px}
+.res .lb{font-family:var(--mono);font-size:12px;color:var(--text-dim)}
+.res .sn{font-family:var(--mono);font-size:12.5px;color:var(--text-dim);white-space:pre-wrap;margin-top:6px;max-height:9em;overflow:hidden}
+mark{background:#4a3405;color:var(--amber-glow);border-radius:2px}
+.mchk{display:flex;flex-wrap:wrap;gap:6px}
+.mchk label{display:flex;align-items:center;gap:5px;text-transform:none;letter-spacing:0;font-family:var(--sans);font-size:14px;color:var(--text);background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:6px 10px;margin:0;cursor:pointer}
+.mchk input{width:auto}
+
+/* modal */
+.backdrop{position:fixed;inset:0;background:rgba(0,0,0,.82);backdrop-filter:blur(6px);z-index:100;display:flex;align-items:flex-end;justify-content:center}
+@media(min-width:700px){.backdrop{align-items:center}}
+.sheet{background:var(--surface);border:1px solid var(--border2);border-top:2px solid var(--amber);border-radius:14px 14px 0 0;width:100%;max-width:760px;max-height:92dvh;display:flex;flex-direction:column}
+@media(min-width:700px){.sheet{border-radius:12px}}
+.sheethd{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--border)}
+.sheethd .tt{flex:1;font-family:var(--mono);color:var(--amber);letter-spacing:1px;font-size:14px}
+.sheetbd{padding:16px;overflow-y:auto;padding-bottom:calc(16px + var(--safe-b))}
+.pagetext{font-family:var(--mono);font-size:12.5px;line-height:1.5;white-space:pre-wrap;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:12px;overflow-x:auto;color:#b8cad8}
+.kv{font-size:13px;color:var(--text-dim);line-height:1.6;margin-bottom:10px;word-break:break-word}
+.kv b{color:var(--text)}
+.caselist .ci{display:flex;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)}
+.caselist .ci .t{flex:1;cursor:pointer} .caselist .ci .t div:first-child{font-weight:700;font-size:14px} .caselist .ci .t div:last-child{font-size:12px;color:var(--text-dim)}
+.progress{height:6px;background:var(--panel);border-radius:3px;overflow:hidden;margin-top:8px}
+.progress div{height:100%;background:var(--cyan);width:0;transition:width .2s}
+.disclaimer{font-size:12px;color:var(--text-dim);line-height:1.5;border-top:1px solid var(--border);padding-top:10px;margin-top:6px}
+.cas-red{color:#ff5a5a}.cas-amber{color:var(--amber)}.cas-blue,.cas-cyan{color:var(--cyan)}.cas-white{color:#fff}.cas-green{color:var(--green)}
+.cdot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:1px;background:var(--text-dim)}
+.cdot.red{background:#ff5a5a}.cdot.amber{background:var(--amber)}.cdot.blue,.cdot.cyan{background:var(--cyan)}.cdot.white{background:#fff}.cdot.green{background:var(--green)}
+.ptable{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12.5px}
+.ptable th,.ptable td{border-bottom:1px solid var(--border);padding:5px 6px;text-align:left;vertical-align:top}
+.ptable th{color:var(--cyan);font-weight:400;position:sticky;top:0;background:var(--surface)}
+.ptable td.mate{color:var(--amber);cursor:pointer}
+.pwrap{overflow-x:auto;max-height:60dvh;overflow-y:auto;border:1px solid var(--border);border-radius:6px}
+.dlink{display:inline-block;font-family:var(--mono);font-size:12px;color:var(--cyan);border:1px solid var(--cyan-dim);border-radius:3px;padding:1px 6px;margin:3px 4px 0 0;cursor:pointer}
+.svgbox{background:#fff;border-radius:6px;overflow:auto;max-height:70dvh;border:1px solid var(--border);touch-action:pan-x pan-y}
+.svgbox img{display:block;width:100%;max-width:none}
+.zbar{display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;align-items:center}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="hrow">
+      <div class="brand">⬡ G600 <span class="long">TROUBLESHOOTER</span><span class="short">TS</span><small id="caseTitle"></small></div>
+      <div class="dot" id="dataDot" title="Manual data"></div>
+      <button class="iconbtn" id="btnNew" title="New case">＋</button>
+      <button class="iconbtn" id="btnCases" title="Recent cases">☰</button>
+      <button class="iconbtn" id="btnExport" title="Export case">⤓</button>
+      <button class="iconbtn" id="btnSettings" title="Settings">⚙</button>
+    </div>
+    <div class="badges" id="badges"><span class="badge">LOADING MANUAL INDEX…</span></div>
+  </header>
+
+  <main id="main">
+    <!-- INTAKE -->
+    <section class="view" id="intakeView">
+      <div class="tabs">
+        <button class="tab on" data-tab="fault">CAS</button>
+        <button class="tab" data-tab="describe">Describe</button>
+        <button class="tab" data-tab="search">Search</button>
+        <button class="tab" data-tab="wiring">Wiring</button>
+      </div>
+
+      <div id="caseForm">
+        <div class="card" id="faultCard">
+          <h3>CAS message</h3>
+          <div class="ac">
+            <input id="faultInput" placeholder="e.g. L-R Bleed Air Hot or CPCS 1-2 Fail" autocomplete="off" autocapitalize="words" spellcheck="false">
+            <div class="aclist hidden" id="faultList"></div>
+          </div>
+          <div class="chips" id="faultChips"></div>
+          <div class="hint" id="faultHint">Searches the G500/G600 CAS message tables (message, color, trigger logic). Add every message that's showing, not just the first. Put maintenance messages / CMC fault text in the description or history fields.</div>
+        </div>
+
+        <div class="card" id="describeCard">
+          <h3>What's happening</h3>
+          <textarea id="descText" rows="5" placeholder="Describe the squawk in your own words: what the crew saw, when it happened, what it did, what changed. E.g. 'Cabin altitude crept up to 9,200 ft in cruise at FL510, CPCS Maintenance Required posted briefly then cleared. Outflow valve looked full closed on the synoptic.'"></textarea>
+        </div>
+
+        <div class="card">
+          <h3>Flight phase &amp; conditions</h3>
+          <div class="grid2">
+            <div class="field"><label>Phase of flight</label>
+              <select id="fPhase">
+                <option value="">—</option>
+                <option>Ground — power up / BIT</option><option>Ground — APU running</option><option>Ground — engine start</option>
+                <option>Taxi</option><option>Takeoff</option><option>Climb</option><option>Cruise</option><option>Descent</option>
+                <option>Approach</option><option>Landing / rollout</option><option>Shutdown / post-flight</option><option>Maintenance test / ground run</option>
+              </select></div>
+            <div class="field"><label>Fault behavior</label>
+              <select id="fBehavior"><option value="">—</option><option>Constant / hard fault</option><option>Intermittent</option><option>One-time, cleared</option><option>Latched until reset</option></select></div>
+          </div>
+          <div class="grid3">
+            <div class="field"><label>Altitude (ft)</label><input id="fAlt" inputmode="numeric" placeholder="45000"></div>
+            <div class="field"><label>Speed (KIAS / M)</label><input id="fSpd" placeholder="M.85"></div>
+            <div class="field"><label>SAT / OAT (°C)</label><input id="fOat" inputmode="numeric" placeholder="-56"></div>
+            <div class="field"><label>Cabin alt (ft)</label><input id="fCabAlt" inputmode="numeric" placeholder="6000"></div>
+            <div class="field"><label>Cabin ΔP (psi)</label><input id="fDp" inputmode="decimal" placeholder="10.1"></div>
+            <div class="field"><label>Cabin rate (fpm)</label><input id="fRate" inputmode="numeric" placeholder="+300"></div>
+          </div>
+          <details class="more" id="moreDetails">
+            <summary>▸ Observed readings, other messages, history</summary>
+            <label>Observed readings</label>
+            <div class="qchips" id="readingChips"></div>
+            <div id="readings"></div>
+            <button class="btn2 small" id="addReading" type="button">＋ Add reading</button>
+            <div class="field" style="margin-top:12px"><label>Maintenance messages / CMC history (free text)</label><input id="fOther" placeholder="e.g. CMC shows CPCU 1 fault on last 3 legs; PlaneConnect alert"></div>
+            <div class="grid2">
+              <div class="field"><label>Aircraft s/n</label><input id="fSn" placeholder="731xx"></div>
+              <div class="field"><label>Engine / side</label><select id="fSide"><option value="">—</option><option>Left</option><option>Right</option><option>Both</option><option>APU</option><option>N/A</option></select></div>
+            </div>
+            <div class="field"><label>Recent maintenance</label><input id="fRecent" placeholder="e.g. Precooler replaced 12 FH ago, pylon panels off for inspection"></div>
+            <div class="field"><label>Already checked / done</label><textarea id="fDone" rows="3" placeholder="e.g. CPCU BIT passed. Connector 006A5P1 inspected, no corrosion."></textarea></div>
+          </details>
+        </div>
+
+        <button class="btn" id="btnStart">START TROUBLESHOOTING ▸</button>
+        <div class="disclaimer">Troubleshooting aid only. It reasons from the indexed G600 manuals (AMM, SDM, iWDM, IPC, SWPM, FSI) and cites pages. There is no G600 FIM in this library. The current revision of the approved maintenance data governs all maintenance and return-to-service decisions.</div>
+      </div>
+
+      <!-- WIRING LOOKUP -->
+      <div id="wiringPane" class="hidden">
+        <div class="card">
+          <h3>Wiring lookup (iWDM)</h3>
+          <div class="field"><input id="wQuery" placeholder="Designator (006A5P1), wire (1H322), P/N or description" autocomplete="off" autocapitalize="characters" spellcheck="false"></div>
+          <div class="grid2">
+            <div class="field"><select id="wMode"><option value="comp">Find component</option><option value="pins">Connector pin-out</option><option value="wire">Trace wire number</option></select></div>
+            <div class="field"><button class="btn2" id="wGo" style="width:100%">Look up</button></div>
+          </div>
+          <div class="hint">From the G600 iWDM. Tap a diagram to open the schematic. No AI or API key needed.</div>
+        </div>
+        <div id="wResults"></div>
+      </div>
+
+      <!-- DIRECT SEARCH -->
+      <div id="searchPane" class="hidden">
+        <div class="card">
+          <h3>Search all manuals</h3>
+          <div class="field"><input id="sQuery" placeholder="Words, part names, designators (171A7P1), ATA numbers…" autocomplete="off"></div>
+          <div class="grid2">
+            <div class="field"><label>ATA chapter</label><select id="sChap"><option value="">Auto (best match)</option></select></div>
+            <div class="field"><label>&nbsp;</label><button class="btn2" id="sGo" style="width:100%">Search</button></div>
+          </div>
+          <div class="mchk" id="sManuals"></div>
+          <div class="hint">Keyword search, no AI and no API key needed. Works offline once the manuals are downloaded (Settings).</div>
+        </div>
+        <div id="sResults"></div>
+      </div>
+    </section>
+
+    <!-- CHAT -->
+    <section id="chatView" class="hidden">
+      <div id="chatLog"></div>
+      <div id="composer">
+        <div class="qchips" id="followChips"></div>
+        <div class="crow">
+          <textarea id="chatInput" rows="1" placeholder="Report a result or ask a follow-up…"></textarea>
+          <button class="send" id="btnSend">▸</button>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- MODAL -->
+<div class="backdrop hidden" id="modal"><div class="sheet"><div class="sheethd"><div class="tt" id="modalTitle"></div><button class="iconbtn" id="modalClose">✕</button></div><div class="sheetbd" id="modalBody"></div></div></div>
+
+<script>
+'use strict';
+/* ═════════════════ CONFIG & STORAGE ═════════════════ */
+const MODELS=[['claude-opus-5-5','Claude Opus 5.5 — most rigorous'],['claude-sonnet-5-5','Claude Sonnet 5.5 — faster, cheaper'],['claude-haiku-5-5','Claude Haiku 5.5 — quickest']];
+const DEFAULTS={anthropicKey:'',githubToken:'',dataRepo:'Avio-AI/G600-Manual-Database',dataBranch:'main',dataMode:'github',dataUrl:'./data/',model:'claude-opus-5-5',thinking:true,remember:true};
+const store={
+  get(k,d){try{const v=localStorage.getItem(k)??sessionStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},
+  set(k,v,persist=true){try{(persist?localStorage:sessionStorage).setItem(k,JSON.stringify(v));if(persist)sessionStorage.removeItem(k);else localStorage.removeItem(k)}catch(e){}},
+  del(k){try{localStorage.removeItem(k);sessionStorage.removeItem(k)}catch(e){}}
+};
+let cfg={...DEFAULTS,...store.get('g600ts_cfg',{})};
+function saveCfg(){store.set('g600ts_cfg',cfg,cfg.remember)}
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/* ═════════════════ DATA LAYER ═════════════════ */
+const DATA={manifest:null,catalog:null,faults:null,shards:new Map(),pins:new Map(),comps:null,ready:false};
+const CACHE_NAME='g600ts-data';
+function dataKey(){return cfg.dataMode==='github'?`gh:${cfg.dataRepo}@${cfg.dataBranch}`:`url:${cfg.dataUrl}`}
+async function rawFetch(path){
+  let res;
+  if(cfg.dataMode==='github'){
+    if(!cfg.githubToken) throw new Error('No GitHub token set (Settings).');
+    res=await fetch(`https://api.github.com/repos/${cfg.dataRepo}/contents/${path}?ref=${encodeURIComponent(cfg.dataBranch)}`,{headers:{Authorization:`Bearer ${cfg.githubToken}`,Accept:'application/vnd.github.raw','X-GitHub-Api-Version':'2022-11-28'},cache:'no-store'});
+  } else {
+    res=await fetch(cfg.dataUrl.replace(/\/?$/,'/')+path,{cache:'no-store'});
+  }
+  if(!res.ok){
+    const hint=res.status===401?' — token invalid or expired':res.status===404?' — repo/file not found or token lacks access to it':res.status===403?' — access denied or rate limited':'';
+    throw new Error(`Data fetch failed (${res.status}) for ${path}${hint}`);
+  }
+  return res.arrayBuffer();
+}
+async function fetchData(path,{cache=true,raw=false}={}){
+  const ck=`https://g600ts.cache/${encodeURIComponent(dataKey())}/${DATA.manifest?.built||'x'}/${path}`;
+  let buf=null;
+  if(cache&&'caches' in window){try{const c=await caches.open(CACHE_NAME);const r=await c.match(ck);if(r)buf=await r.arrayBuffer()}catch(e){}}
+  if(!buf){buf=await rawFetch(path);if(cache&&'caches' in window){try{const c=await caches.open(CACHE_NAME);await c.put(ck,new Response(buf.slice(0)))}catch(e){}}}
+  const u8=new Uint8Array(buf);
+  let txt;
+  if(u8[0]===0x1f&&u8[1]===0x8b){
+    const ds=new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'));
+    txt=await new Response(ds).text();
+  } else txt=new TextDecoder().decode(buf);
+  return raw?txt:JSON.parse(txt);
+}
+async function fetchText(path,opt={}){return fetchData(path,{...opt,raw:true})}
+async function loadCore(){
+  setDot('busy');
+  DATA.ready=false;
+  try{
+    DATA.manifest=await fetchData('manifest.json',{cache:false});
+    [DATA.catalog,DATA.faults]=await Promise.all([fetchData('catalog.json'),fetchData('faults.json')]);
+    DATA.byCite=new Map(DATA.catalog.map(d=>[normCite(d.c),d]));
+    DATA.wsys=new Map(DATA.catalog.filter(d=>d.m==='iWDM').map(d=>[d.c.slice(5),d]));
+    DATA.ready=true; setDot('ok'); renderBadges(); fillChapterSelect();
+  }catch(e){
+    setDot('err'); renderBadges(e.message); console.error(e);
+  }
+}
+function shardKeyFor(doc){return doc.s||(doc.ata?doc.ata.slice(0,2):'gen')}
+/* ── wiring data (iWDM) ── */
+const CTYPE={C:'Connector',I:'Inline connector',D:'Device / LRU',S:'Splice',G:'Ground'};
+async function loadComps(){if(!DATA.comps)DATA.comps=fetchData('wiring/components.json.gz');try{return await DATA.comps}catch(e){DATA.comps=null;throw e}}
+async function loadPins(ch){
+  if(DATA.pins.has(ch))return DATA.pins.get(ch);
+  if(!(DATA.manifest.wiring?.pinChapters||[]).includes(ch))return null;
+  const p=fetchData(`wiring/pins/${ch}.json.gz`);DATA.pins.set(ch,p);
+  try{return await p}catch(e){DATA.pins.delete(ch);throw e}
+}
+async function allPins(){const out=[];for(const ch of DATA.manifest.wiring?.pinChapters||[]){const p=await loadPins(ch);if(p)out.push(p)}return out}
+function diagRef(sys,dia){
+  const d=DATA.wsys.get(sys);if(!d)return {system:sys,sheet:dia};
+  const i=(d.dia||[]).indexOf(dia);const page=i>=0?i+1:1;
+  return {system:sys,sheet:dia,title:d.title,doc_id:d.id,pdf_page:page,cite:`${d.c} sh ${dia}`};
+}
+function compObj(c){return {designator:c[0],type:CTYPE[c[1]]||c[1],part_number:c[2]||undefined,harness:c[3]||undefined,description:c[4]||undefined,ata:c[5]||undefined,pin_count:c[6]||undefined,diagrams:(c[7]||[]).map(x=>diagRef(x[0],x[1]))}}
+async function findComponents(q,{ata_prefix,max=25}={}){
+  const comps=await loadComps();const qq=String(q||'').trim().toUpperCase();if(!qq)return [];
+  const terms=qq.split(/\s+/);const out=[];
+  for(const c of comps){
+    if(ata_prefix&&!(c[5]||'').startsWith(ata_prefix))continue;
+    const name=c[0].toUpperCase(),hay=(c[0]+' '+c[2]+' '+c[3]+' '+c[4]).toUpperCase();
+    if(!terms.every(t=>hay.includes(t)))continue;
+    let s=0;if(name===qq)s+=100;else if(name.startsWith(qq))s+=40;if(c[2].toUpperCase()===qq)s+=60;if(c[1]==='D')s+=3;if(c[6])s+=2;s-=name.length/20;
+    out.push([s,c]);
+  }
+  out.sort((a,b)=>b[0]-a[0]);
+  // merge duplicates (same designator on several sheets)
+  const m=new Map();for(const [,c] of out){const k=c[0]+'|'+c[1]+'|'+c[3];if(!m.has(k))m.set(k,[...c.slice(0,7),[...c[7]]]);else{const e=m.get(k);for(const x of c[7])if(!e[7].some(y=>y[0]===x[0]&&y[1]===x[1]))e[7].push(x)}}
+  return [...m.values()].slice(0,max);
+}
+const PCOLS=['cavity','signal','wire','wire_pn','gauge_csa','color','length','mate_pin','mate_connector','terminal_pn'];
+function pinObj(r){const o={};PCOLS.forEach((k,i)=>{if(r[i]&&r[i]!=='0.0'&&r[i]!=='Not Applicable')o[k]=r[i]});return o}
+async function connectorPins(name,{harness,filter}={}){
+  const N=String(name||'').trim().toUpperCase();if(!N)return [];
+  const comps=await loadComps();
+  const chs=[...new Set(comps.filter(c=>c[0].toUpperCase()===N).map(c=>(c[5]||'00').slice(0,2)))];
+  let tables=[];
+  for(const ch of chs){const p=await loadPins(ch);if(p)for(const k in p){const [n,h]=k.split('|');if(n.toUpperCase()===N&&(!harness||h===harness))tables.push({connector:n,harness:h,rows:p[k]})}}
+  if(!tables.length)for(const p of await allPins())for(const k in p){const [n,h]=k.split('|');if(n.toUpperCase()===N&&(!harness||h===harness))tables.push({connector:n,harness:h,rows:p[k]})}
+  if(filter){const f=String(filter).toUpperCase();tables=tables.map(t=>({...t,rows:t.rows.filter(r=>r.join(' ').toUpperCase().includes(f))}))}
+  return tables;
+}
+async function traceWire(w){
+  const q=String(w||'').replace(/\s+/g,'').toUpperCase();if(q.length<3)return [];
+  const seen=new Set(),out=[];
+  for(const p of await allPins())for(const k in p){const conn=k.split('|')[0];for(const r of p[k]){const wn=(r[2]||'').replace(/\s+/g,'').toUpperCase();if(!wn.startsWith(q))continue;
+    const a=`${conn}-${r[0]}`,b=`${r[8]}-${r[7]}`,key=[r[2],...[a,b].sort()].join('|');if(seen.has(key))continue;seen.add(key);
+    out.push({wire:r[2],end1:a,end2:b,signal:r[1]||undefined,wire_pn:r[3]||undefined,color:r[5]&&r[5]!=='Not Applicable'?r[5]:undefined});if(out.length>=60)return out}}
+  return out;
+}
+async function loadShard(k){
+  if(DATA.shards.has(k))return DATA.shards.get(k);
+  if(!DATA.manifest.shards[k])return null;
+  const p=(async()=>{const pages=await fetchData(`shards/${k}.json.gz`);return {key:k,pages,idx:null}})();
+  DATA.shards.set(k,p);
+  try{return await p}catch(e){DATA.shards.delete(k);throw e}
+}
+
+/* ═════════════════ SEARCH ENGINE (BM25 per chapter shard) ═════════════════ */
+const STOP=new Set('a an and are as at be by for from has have in is it of on or that the this to was were will with when what which how why not no do does did i we my our your there then than but if into out up down after before during while also can could should would per'.split(' '));
+function tok(s){return (s.toLowerCase().match(/[a-z0-9]+(?:[-_.\/][a-z0-9]+)*/g)||[])}
+function qtok(s){return [...new Set(tok(s).filter(t=>!STOP.has(t)&&t.length>1))]}
+function buildIndex(sh){
+  const inv=new Map(),n=sh.pages.length,lens=new Uint32Array(n);let tot=0;
+  for(let i=0;i<n;i++){
+    const ts=tok(sh.pages[i][3]);lens[i]=ts.length;tot+=ts.length;
+    const tf=new Map();for(const t of ts)tf.set(t,(tf.get(t)||0)+1);
+    for(const [t,c] of tf){let p=inv.get(t);if(!p){p=[];inv.set(t,p)}p.push(i,c)}
+  }
+  sh.idx={inv,lens,avg:tot/Math.max(n,1),n};
+}
+function expandTerm(idx,t){
+  const out=[];
+  if(idx.inv.has(t))out.push(t);
+  if(t.endsWith('s')&&idx.inv.has(t.slice(0,-1)))out.push(t.slice(0,-1));
+  if(!t.endsWith('s')&&idx.inv.has(t+'s'))out.push(t+'s');
+  if(t.length>=4&&(/\d/.test(t)||out.length===0)){
+    let c=0;for(const k of idx.inv.keys()){if(k!==t&&k.startsWith(t)){out.push(k);if(++c>=25)break}}
+  }
+  // hyphenated query term with no hit: fall back to its parts
+  if(!out.length&&/[-_.\/]/.test(t))for(const part of t.split(/[-_.\/]/))if(part.length>1&&idx.inv.has(part))out.push(part);
+  return out;
+}
+function searchShard(sh,q,manuals){
+  if(!sh.idx)buildIndex(sh);
+  const idx=sh.idx,terms=qtok(q);if(!terms.length)return [];
+  const scores=new Map(),hits=new Map();const k1=1.2,b=.6;
+  for(const t of terms){
+    for(const et of expandTerm(idx,t)){
+      const post=idx.inv.get(et);const df=post.length/2;const idf=Math.log(1+(idx.n-df+.5)/(df+.5));
+      const w=et===t?1:.6;
+      for(let j=0;j<post.length;j+=2){
+        const i=post[j],tf=post[j+1];
+        const dd=DATA.catalog[sh.pages[i][0]];if(manuals&&!manuals.has(dd.m))continue;if(dd.type&&dd.type.endsWith('(xref)'))continue;
+        const s=w*idf*(tf*(k1+1))/(tf+k1*(1-b+b*idx.lens[i]/idx.avg));
+        scores.set(i,(scores.get(i)||0)+s);
+        let h=hits.get(i);if(!h){h=new Set();hits.set(i,h)}h.add(t);
+      }
+    }
+  }
+  const phrase=terms.length>1?q.toLowerCase().replace(/["']/g,'').trim():null;
+  const out=[];
+  for(const [i,s] of scores){
+    const cover=hits.get(i).size/terms.length;
+    let sc=s*(0.5+cover)*(MW[DATA.catalog[sh.pages[i][0]].m]||1);
+    if(phrase&&sh.pages[i][3].toLowerCase().includes(phrase))sc*=1.6;
+    out.push({sh,i,score:sc,terms});
+  }
+  return out;
+}
+const MW={AMM:1.15,SDM:1.1,iWDM:1,IPC:.85,FSI:1,SWPM:.8,ERC:.9};
+function guessChapters(q,n=3){
+  const terms=qtok(q);const sc=new Map();
+  const add=(k,v)=>sc.set(k,(sc.get(k)||0)+v);
+  for(const t of terms){
+    const m=t.match(/^(\d{2})-\d{2}(-\d{2})?$/);if(m)add(m[1],10);
+  }
+  for(const d of DATA.catalog){
+    if(!d.ata)continue;const tt=d.title.toLowerCase();let h=0;
+    for(const t of terms)if(tt.includes(t))h++;
+    if(h)add(d.ata.slice(0,2),h*h);
+  }
+  for(const f of DATA.faults){const mm=(f.msg+' '+f.cause).toLowerCase();let h=0;for(const t of terms)if(mm.includes(t))h++;if(h>1&&f.ata)add(f.ata.slice(0,2),h*.5)}
+  return [...sc.entries()].sort((a,b)=>b[1]-a[1]).slice(0,n).map(x=>x[0]).filter(k=>DATA.manifest.shards[k]);
+}
+function citeFor(doc,page,label){
+  if(doc.m==='iWDM'){const dia=(doc.dia||[])[page-1];return `${doc.c} sh ${dia||page}`}
+  return `${doc.c} p${page}`;
+}
+function snippet(text,terms,len=650){
+  const low=text.toLowerCase();let best=-1;
+  for(const t of terms){const p=low.indexOf(t);if(p>=0&&(best<0||p<best))best=p}
+  if(best<0)best=0;
+  let s=Math.max(0,best-len*.18|0),e=Math.min(text.length,s+len);
+  s=text.lastIndexOf('\n',s)+1||s;
+  return (s>0?'… ':'')+text.slice(s,e).trim()+(e<text.length?' …':'');
+}
+async function searchManuals(query,{chapters,manuals,max=8}={}){
+  let ch=[...new Set((chapters&&chapters.length?chapters:guessChapters(query)).map(c=>{c=String(c).toLowerCase().trim();if(c==='fsi'||c==='gen')return c;const m=c.match(/\d{1,2}/);return m?m[0].padStart(2,'0'):c}))].filter(k=>DATA.manifest.shards[k]);
+  if(!ch.length)ch=Object.keys(DATA.manifest.shards);
+  const ms=manuals&&manuals.length?new Set(manuals.map(m=>m.toUpperCase()==='IWDM'?'iWDM':m.toUpperCase())):null;
+  const shards=(await Promise.all(ch.map(loadShard))).filter(Boolean);
+  let res=[];for(const sh of shards)res.push(...searchShard(sh,query,ms));
+  res.sort((a,b)=>b.score-a.score);
+  // diversify: max 2 pages per document
+  const per=new Map(),out=[];
+  for(const r of res){const did=r.sh.pages[r.i][0];const c=per.get(did)||0;if(c>=2)continue;per.set(did,c+1);out.push(r);if(out.length>=max)break}
+  return {chapters:ch,results:out.map(r=>{const [did,p,label,text]=r.sh.pages[r.i];const d=DATA.catalog[did];
+    return {doc_id:did,pdf_page:p,cite:citeFor(d,p,label),manual:d.m,ata:d.ata,doc_type:d.type,title:d.title,rev:d.rev,score:+r.score.toFixed(2),snippet:snippet(text,r.terms)}})};
+}
+async function getPage(docId,page){
+  const d=DATA.catalog[docId];if(!d)return null;
+  const k=shardKeyFor(d);if(!k)return null;
+  const sh=await loadShard(k);if(!sh)return null;
+  const p=sh.pages.find(x=>x[0]===docId&&x[1]===page);
+  return p?{doc:d,page,label:p[2],text:p[3],cite:citeFor(d,page,p[2])}:{doc:d,page,label:'',text:'(No extractable text on this page — likely a figure or blank page. Open the PDF.)',cite:citeFor(d,page,'')};
+}
+const normMsg=s=>String(s).toUpperCase().replace(/[^A-Z0-9]+/g,' ').trim();
+function searchFaults(q,max=12){
+  const qq=normMsg(q);const terms=qq.split(' ').filter(Boolean);if(!terms.length)return [];
+  // "L PACK FAIL" should find "L-R Pack Fail"
+  const out=[];
+  for(const f of DATA.faults){
+    const m=normMsg(f.msg),hay=m+' '+normMsg(f.cause)+' '+f.ata;
+    const mm=' '+m.replace(/\bL R\b/,'L R L R')+' ';
+    if(!terms.every(t=>hay.includes(t)||(t.length===1&&/[LR]/.test(t)&&/\bL R\b/.test(m))))continue;
+    let s=0;if(m===qq)s+=100;if(m.startsWith(qq))s+=20;if(terms.every(t=>mm.includes(' '+t+' ')||mm.includes(' '+t)))s+=15;if(f.cause)s+=3;s-=m.length/50;
+    out.push([s,f]);
+  }
+  return out.sort((a,b)=>b[0]-a[0]).slice(0,max).map(x=>x[1]);
+}
+
+/* ═════════════════ AI TOOLS ═════════════════ */
+const MANS=['AMM','SDM','FSI','iWDM','IPC','SWPM','ERC'];
+const TOOLS=[
+ {name:'lookup_cas',description:'Look up G600 CAS messages in the FlightSafety G500/G600 MTM CAS tables (~560 messages). Returns message, color (red=warning, amber=caution, blue/cyan=advisory, white=status, when known), the trigger logic/cause text, ATA chapter and an FSI citation (doc_id/pdf_page) for the CAS table page. "L-R" means the message exists per side. This is training data: confirm logic against SDM/AMM.',
+  input_schema:{type:'object',properties:{query:{type:'string',description:'Message words, e.g. "pack fail", "bleed air hot", "CPCS"'}},required:['query']}},
+ {name:'search_manuals',description:'Keyword (BM25) search over page text, by ATA chapter: AMM (S1000D data modules: descriptions, servicing, inspections, operational/functional tests, removal/installation, general maintenance incl. circuit breaker list), SDM (system description manual: system theory, components, controls, CAS logic), FSI (G500/G600 maintenance training manual), iWDM (wiring diagram sheets: designators, wire numbers, LOC text on each sheet), IPC, SWPM (standard wiring practices), ERC (engine run checklist). Returns ranked page snippets with doc_id, pdf_page and a citation string. Use specific technical terms, component names, reference designators (e.g. 006A5), CAS wording or ATA numbers. Specify ata_chapters whenever you know the system. Run several focused searches rather than one vague one.',
+  input_schema:{type:'object',properties:{query:{type:'string'},ata_chapters:{type:'array',items:{type:'string'},description:'Two-digit ATA chapters, e.g. ["21","36"]. "gen" = general/front matter (incl. circuit breaker list), "fsi" = FSI overview books (avionics overview, synoptics, EER racks, schematics). Omit to auto-select.'},manuals:{type:'array',items:{type:'string',enum:MANS},description:'Restrict to these manuals'},max_results:{type:'integer',description:'Default 8, max 15'}},required:['query']}},
+ {name:'read_pages',description:'Read the full text of one or more consecutive pages of a document (doc_id from search/list results). For iWDM documents each "page" is one wiring diagram sheet and returns its devices, designators and sheet text. Use to get complete steps, limits, tolerances, tables, logic or wiring around a hit. Max 4 pages per call.',
+  input_schema:{type:'object',properties:{doc_id:{type:'integer'},pdf_page:{type:'integer'},count:{type:'integer',description:'Pages to read, default 1, max 4'}},required:['doc_id','pdf_page']}},
+ {name:'list_documents',description:'List documents in the catalog filtered by ATA prefix (e.g. "21-31" or "36"), manual and/or title words. AMM doc types come from the task title (e.g. "Removal / Installation", "Operational Test", "Functional Check", "Detailed Inspection", "General Maintenance"). iWDM documents are wiring systems (one per Capital logic design) whose pages are diagram sheets.',
+  input_schema:{type:'object',properties:{ata_prefix:{type:'string'},manual:{type:'string',enum:MANS},title_contains:{type:'string'}}}},
+ {name:'find_component',description:'Find wiring components in the G600 iWDM by reference designator, part number, harness or description words: devices/LRUs (e.g. 006A5 TEMPERATURE CONTROL SENSOR), connectors (006A5P1), inline connectors, splices, grounds. Returns type, P/N, harness, ATA and the wiring diagram sheets it appears on (with citations openable as schematics).',
+  input_schema:{type:'object',properties:{query:{type:'string',description:'e.g. "006A5", "CPCU", "MS3456", "TEMPERATURE SENSOR"'},ata_prefix:{type:'string',description:'Optional ATA filter, e.g. "21-20"'}},required:['query']}},
+ {name:'get_connector_pins',description:'Get the iWDM pin-out of a connector or inline: for each cavity the signal, wire number (gauge is in the wire number, e.g. 1H321A20 = 20 AWG), wire P/N, color, and the mating far-end connector and pin. Use to say exactly which pins/wires to meter and where the other end goes.',
+  input_schema:{type:'object',properties:{connector:{type:'string',description:'Exact designator, e.g. "006A5P1"'},filter:{type:'string',description:'Optional text filter on rows (pin, wire, signal, far-end)'}},required:['connector']}},
+ {name:'trace_wire',description:'Trace a wire number through all iWDM connector pin tables: returns every connector-pin to connector-pin segment carrying that wire (prefix match, e.g. "1H322" finds 1H322A22, 1H322B22…), so you can follow a circuit through inlines and splices end to end.',
+  input_schema:{type:'object',properties:{wire:{type:'string'}},required:['wire']}}
+];
+async function runTool(name,input){
+  try{
+    if(!DATA.ready)throw new Error('Manual data is not loaded. Check Settings.');
+    if(name==='lookup_cas'||name==='lookup_fault'){
+      const r=searchFaults(input.query||'',15);r.forEach(f=>registerSource({cite:f.cite,doc_id:f.doc,pdf_page:f.page}));
+      return {summary:`${r.length} match${r.length===1?'':'es'}`,data:{matches:r.map(f=>({message:f.msg,color:f.color||'(not stated)',trigger_logic:f.cause||'(listed without a cause in the FSI; search SDM/FSI for the logic)',ata_chapter:f.ata,fsi_table:f.table||undefined,cite:f.cite,doc_id:f.doc,pdf_page:f.page}))}};
+    }
+    if(name==='search_manuals'){
+      const max=Math.min(15,Math.max(1,input.max_results|0||8));
+      const r=await searchManuals(input.query||'',{chapters:input.ata_chapters,manuals:input.manuals,max});
+      r.results.forEach(x=>registerSource(x));
+      return {summary:`${r.results.length} hits · ch ${r.chapters.join(',')}`,data:{query:input.query,chapters_searched:r.chapters,results:r.results}};
+    }
+    if(name==='read_pages'){
+      const cnt=Math.min(4,Math.max(1,input.count|0||1));const pages=[];
+      for(let i=0;i<cnt;i++){const pg=await getPage(input.doc_id|0,(input.pdf_page|0)+i);if(!pg)break;if(pg.page>pg.doc.pages)break;pages.push({cite:pg.cite,pdf_page:pg.page,text:pg.text});registerSource({cite:pg.cite,doc_id:pg.doc.id,pdf_page:pg.page})}
+      const d=DATA.catalog[input.doc_id|0];
+      if(!pages.length)return {summary:'no page',data:{error:'Page not found'}};
+      return {summary:`${pages.map(p=>p.cite).join(', ')}`.slice(0,90),data:{doc_id:d.id,manual:d.m,title:d.title,ata:d.ata,doc_type:d.type,rev:d.rev,total_pages:d.pages,pages}};
+    }
+    if(name==='list_documents'){
+      const ap=(input.ata_prefix||'').trim(),m=input.manual,tc=(input.title_contains||'').toLowerCase();
+      let r=DATA.catalog.filter(d=>(!ap||(d.ata||'').startsWith(ap.length===1?'0'+ap:ap))&&(!m||d.m===m)&&(!tc||d.title.toLowerCase().includes(tc)||(d.type||'').toLowerCase().includes(tc)));
+      const total=r.length;r=r.slice(0,60);
+      r.forEach(d=>registerSource({cite:citeFor(d,1),doc_id:d.id,pdf_page:1}));
+      return {summary:`${total} docs`,data:{total,shown:r.length,documents:r.map(d=>({doc_id:d.id,manual:d.m,cite_prefix:d.c,ata:d.ata,type:d.type,title:d.title,pages:d.pages,rev:d.rev}))}};
+    }
+    if(name==='find_component'){
+      const r=(await findComponents(input.query,{ata_prefix:input.ata_prefix})).map(compObj);
+      r.forEach(c=>c.diagrams.forEach(registerSource));
+      return {summary:`${r.length} component${r.length===1?'':'s'}`,data:{matches:r}};
+    }
+    if(name==='get_connector_pins'){
+      const t=await connectorPins(input.connector,{filter:input.filter});
+      if(!t.length)return {summary:'not found',data:{error:`No pin table for "${input.connector}". Check the exact designator with find_component (devices like 006A5 have connectors like 006A5P1/J1).`}};
+      return {summary:`${t.map(x=>x.connector).join(', ')} · ${t.reduce((a,x)=>a+x.rows.length,0)} pins`,data:{tables:t.map(x=>({connector:x.connector,harness:x.harness,pins:x.rows.slice(0,140).map(pinObj),truncated:x.rows.length>140||undefined})),cite_as:`iWDM ${input.connector} pin-out`}};
+    }
+    if(name==='trace_wire'){
+      const r=await traceWire(input.wire);
+      return {summary:`${r.length} segment${r.length===1?'':'s'}`,data:{segments:r,cite_as:`iWDM wire ${input.wire}`}};
+    }
+    throw new Error('Unknown tool '+name);
+  }catch(e){return {summary:'error',error:true,data:{error:String(e.message||e)}}}
+}
+const SOURCES=new Map();
+function normCite(c){return String(c).toUpperCase().replace(/[^A-Z0-9]+/g,' ').trim()}
+function registerSource(x){if(x&&x.cite&&x.doc_id!=null){SOURCES.set(normCite(x.cite),{doc_id:x.doc_id,pdf_page:x.pdf_page});}}
+
+/* ═════════════════ SYSTEM PROMPT ═════════════════ */
+function systemPrompt(){
+  const m=DATA.manifest||{};const rev=m.revisions||{};
+  return `You are a senior Gulfstream G600 (GVII-G600) troubleshooting specialist working beside a certificated A&P technician / director of maintenance on the hangar floor. Your job is to reach a conclusive, defensible determination of what has failed and why, grounded in the aircraft's own maintenance data.
+
+# Your library (searchable through tools)
+Aircraft: ${m.aircraft||'Gulfstream G600'}. The G600 shares the GVII platform with the G500; many data modules are coded GAC500 and apply to both.
+- AMM (${rev.AMM||''}): S1000D data modules, cited as "AMM <ATA>-<info code>", e.g. AMM 21-61-03-280B. The task type is in each module's title (e.g. Removal / Installation, Operational Test, Functional Check, Detailed Inspection, Continuity Check, General Maintenance — e.g. SSPC control via the Touch Screen Controller); info codes vary, so go by the title. PW800 engine modules carry the PW800 suffix. Front matter includes the circuit breaker list (number, name, panel location).
+- SDM ${rev.SDM||''}: Gulfstream System Description Manual — system theory, component lists/locations, controls, indications and CAS logic per ATA chapter.
+- iWDM (${rev.iWDM||''}): interactive wiring data. Wiring systems with diagram sheets (cite "iWDM <system> sh <sheet>"), every device/connector/splice/ground with P/N and harness, and full connector pin-outs (cavity → signal → wire → far-end pin/connector).
+- IPC (${rev.IPC||''}): part numbers and effectivity. SWPM (${rev.SWPM||''}): standard wiring practices (repair, crimp, splice, shield, bonding).
+- FSI ${rev.FSI||''}: training manual by chapter, including CAS tables with trigger logic. Training only; AMM/SDM govern.
+- ERC: engine/APU ground run checklist.
+Known gaps: ${(m.gaps||[]).join(' | ')}
+
+# How to work
+1. For every CAS message given, call lookup_cas to get its color and trigger logic. There is no G600 FIM: build fault isolation from the system logic (SDM + FSI), the monitoring source (which RDC/DCN node, controller, MAU or sensor sets the message), and the iWDM wiring.
+2. Understand the system before judging: read the SDM chapter (and FSI chapter) for how the message is generated: sensors, thresholds, controllers, time delays, inhibits, BIT, data paths (DCN/RDCs, ARINC 429, MAU/IOGM). Search for the exact CAS wording and the logic.
+3. Use the reported conditions as evidence. Phase of flight, altitude, temperatures, pressures, ΔP, side, intermittency, recent maintenance and what has already been checked must actively raise or lower each hypothesis. Example: a fault only at high altitude/cold soak points toward pressure- or temperature-sensitive components and connectors, not a hard LRU failure; a fault that follows a swap points toward what moved.
+4. Build a differential: list candidate causes (sensor, wiring/connector, data source such as an RDC, controller/LRU, power: SSPC/CB, mechanical) and for each say what evidence supports or contradicts it. Rank them.
+5. Recommend the single most discriminating next check — the test that best separates the top hypotheses, with the least effort and risk — with exact steps. For wiring checks, use find_component, get_connector_pins and trace_wire to give real designators, pins and wire numbers, and say where the far end is. Give expected values and pass/fail interpretation only where the manuals state them; otherwise say what a normal result looks like and label it general knowledge.
+6. When the technician reports results, update the differential explicitly ("this eliminates X because…") and continue until you can state a conclusion: what failed, why it produced these symptoms, the corrective action (the AMM Removal / Installation module) and the required operational test / functional check after repair (the matching AMM module).
+7. Use the AMM general maintenance modules for power-up, SSPC/circuit breaker control and safe-ground setup; IPC for part numbers when replacement is likely; SWPM for wire/connector repair methods.
+Do not stop at one search: search, read the relevant pages, cross-check between manuals. Keep tool calls purposeful (typically 3–10 per turn).
+
+# Rules
+- Cite every manual-derived fact inline using the citation strings returned by tools, in square brackets, e.g. [AMM 21-61-03-280B p2], [SDM 21-00-00 p3], [FSI 21 p129], [iWDM 73P2120006J_TP sh 3.000], [iWDM 006A5P1 pin-out]. Never invent citations.
+- Never invent part numbers, limits, tolerances, torque values, pin numbers, wire numbers or task numbers. If you cannot find it, say so and point to where it should be.
+- Clearly label anything from general experience rather than these manuals as "General knowledge (not from the manuals)".
+- FSI is training material (chapter revisions 0.1–0.9): confirm FSI logic against the SDM/AMM when it matters, and flag differences. The iWDM package is effective for s/n 73100–73114: if the aircraft serial is outside that range, say the wiring must be verified against the iWDM for that serial.
+- Relay WARNINGs and CAUTIONs from procedures that apply to the step you recommend (electrical power, hot parts, pressurized systems, flight controls, fuel tank CDCCL).
+- State your confidence (High / Medium / Low) in the leading hypothesis and what would raise it.
+- You are a decision aid. Return to service requires the current approved data, the required operational/functional check, and sign-off by an appropriately certificated person — say this once at conclusion, not in every reply.
+
+# Response format (hangar-readable, phone screen)
+Use short sections with markdown headings:
+### Assessment — 2–4 sentences: what the symptoms mean in terms of system logic.
+### Likely causes — ranked list, each with evidence for/against and citation.
+### Next check — numbered steps, expected result, and what each outcome means.
+### References — the key documents (SDM/AMM/iWDM/IPC) for this fault.
+For follow-ups, keep it tight: update the differential and give the next step. Use tables only when comparing values or listing pins.`;
+}
+
+/* ═════════════════ CLAUDE API (streaming + tool loop) ═════════════════ */
+let ABORT=null;
+async function callClaude(body,handlers){
+  ABORT=new AbortController();
+  const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',signal:ABORT.signal,
+    headers:{'content-type':'application/json','x-api-key':cfg.anthropicKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+    body:JSON.stringify({...body,stream:true})});
+  if(!res.ok){let t=await res.text();let msg=t;try{msg=JSON.parse(t).error.message}catch(e){}const err=new Error(`Anthropic API ${res.status}: ${msg}`);err.status=res.status;err.raw=msg;throw err}
+  const reader=res.body.getReader(),dec=new TextDecoder();let buf='';const blocks=[];let stop=null,usage={};
+  for(;;){
+    const {done,value}=await reader.read();if(done)break;
+    buf+=dec.decode(value,{stream:true});let i;
+    while((i=buf.indexOf('\n\n'))>=0){
+      const raw=buf.slice(0,i);buf=buf.slice(i+2);
+      const data=raw.split('\n').filter(l=>l.startsWith('data:')).map(l=>l.slice(5).trim()).join('');
+      if(!data)continue;let ev;try{ev=JSON.parse(data)}catch(e){continue}
+      if(ev.type==='message_start'){usage={...(ev.message.usage||{})}}
+      else if(ev.type==='content_block_start'){const b={...ev.content_block};if(b.type==='tool_use'){b._json='';b.input={}}blocks[ev.index]=b;handlers.start?.(b,ev.index)}
+      else if(ev.type==='content_block_delta'){const b=blocks[ev.index],d=ev.delta;
+        if(d.type==='text_delta'){b.text=(b.text||'')+d.text;handlers.text?.(b,ev.index)}
+        else if(d.type==='input_json_delta'){b._json+=d.partial_json}
+        else if(d.type==='thinking_delta'){b.thinking=(b.thinking||'')+d.thinking;handlers.thinking?.(b,ev.index)}
+        else if(d.type==='signature_delta'){b.signature=(b.signature||'')+d.signature}}
+      else if(ev.type==='content_block_stop'){const b=blocks[ev.index];if(b&&b.type==='tool_use'){try{b.input=b._json?JSON.parse(b._json):{}}catch(e){b.input={}}delete b._json;handlers.toolready?.(b,ev.index)}}
+      else if(ev.type==='message_delta'){stop=ev.delta?.stop_reason||stop;Object.assign(usage,ev.usage||{})}
+      else if(ev.type==='error'){throw new Error(ev.error?.message||'Stream error')}
+    }
+  }
+  return {content:blocks.filter(Boolean).map(({_k,_json,...b})=>b),stop_reason:stop,usage};
+}
+function withCacheBreakpoint(msgs){
+  const c=JSON.parse(JSON.stringify(msgs));
+  const last=c[c.length-1];
+  if(last&&Array.isArray(last.content)&&last.content.length){last.content[last.content.length-1].cache_control={type:'ephemeral'}}
+  return c;
+}
+let CASE=null; // {id,title,created,updated,form,msgs:[api messages],usage:{in,out}}
+let BUSY=false;
+async function runAgent(){
+  if(!cfg.anthropicKey){openSettings('Add your Anthropic API key to use the AI assistant.');return}
+  BUSY=true;setSendState();
+  const tools=TOOLS.map((t,i)=>i===TOOLS.length-1?{...t,cache_control:{type:'ephemeral'}}:t);
+  const sys=[{type:'text',text:systemPrompt(),cache_control:{type:'ephemeral'}}];
+  let useThinking=cfg.thinking;
+  const view=newAiBubble();
+  try{
+    for(let iter=0;iter<16;iter++){
+      const body={model:cfg.model,max_tokens:useThinking?20000:8000,system:sys,tools,messages:withCacheBreakpoint(CASE.msgs)};
+      if(useThinking)body.thinking={type:'enabled',budget_tokens:8000};
+      let resp;
+      try{resp=await callClaude(body,view.handlers())}
+      catch(e){
+        if(useThinking&&e.status===400&&/thinking/i.test(e.raw||'')){useThinking=false;view.resetPending();iter--;continue}
+        throw e;
+      }
+      CASE.usage.in+=(resp.usage.input_tokens||0)+(resp.usage.cache_read_input_tokens||0)+(resp.usage.cache_creation_input_tokens||0);
+      CASE.usage.out+=resp.usage.output_tokens||0;
+      CASE.msgs.push({role:'assistant',content:resp.content});
+      saveCase();
+      if(resp.stop_reason!=='tool_use')break;
+      const results=[];
+      for(const b of resp.content.filter(b=>b.type==='tool_use')){
+        const r=await runTool(b.name,b.input);
+        view.toolDone(b.id,r);
+        results.push({type:'tool_result',tool_use_id:b.id,content:JSON.stringify(r.data),...(r.error?{is_error:true}:{})});
+      }
+      if(iter===14)results.push({type:'text',text:'Tool budget reached for this turn. Give your best assessment now with what you have, and say what remains to be checked.'});
+      CASE.msgs.push({role:'user',content:results});
+      saveCase();
+    }
+    view.finish(CASE.usage);
+  }catch(e){
+    if(e.name==='AbortError'){view.error('Stopped.');fixDanglingToolUse()}
+    else{view.error(e.message+(e.status===401?'\n\nCheck your Anthropic API key in Settings.':e.status===429?'\n\nRate limited — wait a moment and resend.':''));fixDanglingToolUse()}
+  }finally{BUSY=false;ABORT=null;setSendState();saveCase();renderFollowChips()}
+}
+function fixDanglingToolUse(){
+  // keep message history valid if a run was interrupted mid-tool-loop
+  const last=CASE.msgs[CASE.msgs.length-1];
+  if(last&&last.role==='assistant'){const tu=last.content.filter(b=>b.type==='tool_use');
+    if(tu.length)CASE.msgs.push({role:'user',content:tu.map(b=>({type:'tool_result',tool_use_id:b.id,content:'{"error":"interrupted"}',is_error:true}))});
+    else if(!last.content.some(b=>b.type==='text'&&b.text))CASE.msgs.pop();
+  }
+  if(last&&last.role==='user'&&last.content.every(b=>b.type==='tool_result'))CASE.msgs.push({role:'assistant',content:[{type:'text',text:'(Interrupted.)'}]});
+}
+
+/* ═════════════════ RENDERING ═════════════════ */
+const CITE_RX=/\[((?:AMM|SDM|FSI|iWDM|IPC|SWPM|ERC)\b[^\]\n]{1,80})\]/g;
+function inlineMd(s){
+  s=esc(s);
+  s=s.replace(/`([^`]+)`/g,'<code>$1</code>').replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>').replace(/(^|[^*])\*([^*\s][^*]*)\*/g,'$1<em>$2</em>');
+  s=s.replace(CITE_RX,(m,c)=>c.split(/;\s*/).map(x=>`<span class="cite" data-cite="${esc(x)}">${esc(x)}</span>`).join(' '));
+  return s;
+}
+function md(src){
+  const lines=String(src||'').replace(/\r/g,'').split('\n');let html='',i=0;
+  const listStack=[];
+  const closeLists=()=>{while(listStack.length)html+=`</${listStack.pop()}>`};
+  while(i<lines.length){
+    let l=lines[i];
+    if(/^```/.test(l)){closeLists();let code='';i++;while(i<lines.length&&!/^```/.test(lines[i]))code+=lines[i++]+'\n';i++;html+=`<pre>${esc(code)}</pre>`;continue}
+    if(/^\s*\|.*\|\s*$/.test(l)&&i+1<lines.length&&/^\s*\|?\s*:?-{2,}/.test(lines[i+1])){
+      closeLists();const row=r=>r.trim().replace(/^\||\|$/g,'').split('|').map(c=>c.trim());
+      const hd=row(l);i+=2;let t='<table><tr>'+hd.map(c=>`<th>${inlineMd(c)}</th>`).join('')+'</tr>';
+      while(i<lines.length&&/^\s*\|.*\|\s*$/.test(lines[i])){t+='<tr>'+row(lines[i]).map(c=>`<td>${inlineMd(c)}</td>`).join('')+'</tr>';i++}
+      html+=t+'</table>';continue;
+    }
+    let m;
+    if((m=l.match(/^(#{1,4})\s+(.*)/))){closeLists();html+=`<h${m[1].length+1>4?4:m[1].length+1}>${inlineMd(m[2])}</h${m[1].length+1>4?4:m[1].length+1}>`;i++;continue}
+    if(/^\s*(---|\*\*\*)\s*$/.test(l)){closeLists();html+='<hr>';i++;continue}
+    if((m=l.match(/^>\s?(.*)/))){closeLists();html+=`<blockquote>${inlineMd(m[1])}</blockquote>`;i++;continue}
+    if((m=l.match(/^(\s*)([-*•]|\d+[.)])\s+(.*)/))){
+      const type=/\d/.test(m[2])?'ol':'ul';const depth=Math.floor(m[1].replace(/\t/g,'    ').length/2);
+      while(listStack.length>depth+1)html+=`</${listStack.pop()}>`;
+      if(listStack.length<depth+1){html+=`<${type}>`;listStack.push(type)}
+      else if(listStack[listStack.length-1]!==type){html+=`</${listStack.pop()}><${type}>`;listStack.push(type)}
+      html+=`<li>${inlineMd(m[3])}</li>`;i++;continue;
+    }
+    if(!l.trim()){closeLists();i++;continue}
+    closeLists();let p=l;i++;
+    while(i<lines.length&&lines[i].trim()&&!/^(#{1,4}\s|```|\s*([-*•]|\d+[.)])\s|>|\s*\|)/.test(lines[i]))p+='\n'+lines[i++];
+    html+=`<p>${inlineMd(p).replace(/\n/g,'<br>')}</p>`;
+  }
+  closeLists();return html;
+}
+const TOOL_LABEL={lookup_cas:i=>`CAS: “${i.query||''}”`,lookup_fault:i=>`CAS: “${i.query||''}”`,search_manuals:i=>`Search ${(i.manuals||[]).join('/')||'all'}${i.ata_chapters?' ch '+i.ata_chapters.join(','):''}: “${i.query||''}”`,read_pages:i=>`Read doc ${i.doc_id} p${i.pdf_page}${i.count>1?'+'+(i.count-1):''}`,list_documents:i=>`List docs ${[i.manual,i.ata_prefix,i.title_contains].filter(Boolean).join(' · ')}`,find_component:i=>`Component: ${i.query||''}${i.ata_prefix?' ('+i.ata_prefix+')':''}`,get_connector_pins:i=>`Pin-out ${i.connector||''}${i.filter?' · '+i.filter:''}`,trace_wire:i=>`Trace wire ${i.wire||''}`};
+function toolLabel(b){const f=TOOL_LABEL[b.name];return f?f(b.input||{}):b.name}
+function toolEl(b,result){
+  const el=document.createElement('div');el.className='tool'+(result?(result.error?' err':''):' run');el.dataset.id=b.id;
+  el.innerHTML=`<span class="ic">${result?(result.error?'✖':'◆'):'◇'}</span><span class="tx">${esc(toolLabel(b))}</span><span class="rs">${result?esc(result.summary||''):'…'}</span>`;
+  el.addEventListener('click',()=>{const n=el.nextElementSibling;if(n&&n.classList.contains('tooldetail')){n.remove();return}
+    const d=document.createElement('div');d.className='tooldetail';d.textContent=el._result?JSON.stringify(el._result,null,1).slice(0,6000):'running…';el.after(d)});
+  if(result)el._result=result.data;
+  return el;
+}
+function newAiBubble(){
+  const log=$('#chatLog');const wrap=document.createElement('div');wrap.className='msg ai';log.appendChild(wrap);
+  const typing=document.createElement('div');typing.className='typing';typing.innerHTML='<span></span><span></span><span></span>';wrap.appendChild(typing);
+  const els={};let raf=null;const pendingText=new Set();
+  const flush=()=>{raf=null;for(const b of pendingText){els[b._k].innerHTML=md(b.text)}pendingText.clear();autoScroll()};
+  let turn=0;
+  const api={
+    handlers(){turn++;const T=turn;return{
+      start(b,idx){typing.remove();b._k=T+':'+idx;
+        if(b.type==='text'){const d=document.createElement('div');d.className='aitext';wrap.appendChild(d);els[b._k]=d}
+        else if(b.type==='thinking'){const d=document.createElement('details');d.className='think';d.innerHTML='<summary>◈ REASONING</summary><div></div>';wrap.appendChild(d);els[b._k]=d.querySelector('div')}
+        else if(b.type==='tool_use'){const t=toolEl(b);wrap.appendChild(t);els[b._k]=t;els['tool:'+b.id]=t}
+        wrap.appendChild(typing);autoScroll()},
+      text(b){pendingText.add(b);if(!raf)raf=requestAnimationFrame(flush)},
+      thinking(b){els[b._k].textContent=b.thinking},
+      toolready(b){const t=els['tool:'+b.id];if(t)t.querySelector('.tx').textContent=toolLabel(b)}
+    }},
+    toolDone(id,r){const t=els['tool:'+id];if(!t)return;t.classList.remove('run');if(r.error)t.classList.add('err');t.querySelector('.ic').textContent=r.error?'✖':'◆';t.querySelector('.rs').textContent=r.summary||'';t._result=r.data},
+    resetPending(){},
+    finish(u){typing.remove();flush();const d=document.createElement('div');d.className='usage';d.textContent=`case tokens · in ${fmtK(u.in)} · out ${fmtK(u.out)} · ${cfg.model}`;wrap.appendChild(d);autoScroll()},
+    error(msg){typing.remove();flush();const d=document.createElement('div');d.className='errbox';d.textContent=msg;wrap.appendChild(d);autoScroll()}
+  };
+  return api;
+}
+const fmtK=n=>n>=1000?(n/1000).toFixed(1)+'k':String(n);
+let stickBottom=true;
+function autoScroll(){const m=$('#main');if(stickBottom)m.scrollTop=m.scrollHeight}
+$('#main').addEventListener('scroll',()=>{const m=$('#main');stickBottom=m.scrollHeight-m.scrollTop-m.clientHeight<120});
+
+function renderCase(){
+  const log=$('#chatLog');log.innerHTML='';SOURCES.clear();
+  const toolResults=new Map();
+  for(const m of CASE.msgs)if(m.role==='user')for(const b of m.content)if(b.type==='tool_result'){let d;try{d=JSON.parse(b.content)}catch(e){d={}}toolResults.set(b.tool_use_id,{data:d,error:!!b.is_error,summary:summarize(d)});registerFromResult(d)}
+  let aiWrap=null;
+  for(const m of CASE.msgs){
+    if(m.role==='user'){
+      const vis=m.content.filter(b=>b.type==='text'&&!b.text.startsWith('<<CONTEXT>>')&&!b.text.startsWith('Tool budget reached'));
+      if(!vis.length)continue;aiWrap=null;
+      const d=document.createElement('div');d.className='msg user';
+      const t=vis.map(b=>b.text).join('\n');
+      if(t.startsWith('NEW TROUBLESHOOTING CASE')){d.innerHTML=`<div class="casehdr">▸ CASE OPENED</div>${esc(t.replace(/^NEW TROUBLESHOOTING CASE\n?/,''))}`}else d.textContent=t;
+      log.appendChild(d);
+    }else{
+      if(!aiWrap){aiWrap=document.createElement('div');aiWrap.className='msg ai';log.appendChild(aiWrap)}
+      for(const b of m.content){
+        if(b.type==='text'&&b.text){const d=document.createElement('div');d.className='aitext';d.innerHTML=md(b.text);aiWrap.appendChild(d)}
+        else if(b.type==='thinking'&&b.thinking){const d=document.createElement('details');d.className='think';d.innerHTML='<summary>◈ REASONING</summary><div></div>';d.querySelector('div').textContent=b.thinking;aiWrap.appendChild(d)}
+        else if(b.type==='tool_use'){aiWrap.appendChild(toolEl(b,toolResults.get(b.id)||{summary:'',data:{}}))}
+      }
+    }
+  }
+  $('#caseTitle').textContent=CASE.title?' · '+CASE.title:'';
+  renderFollowChips();
+  requestAnimationFrame(()=>{stickBottom=true;autoScroll()});
+}
+function summarize(d){if(!d)return'';if(d.error)return'error';if(d.matches)return`${d.matches.length} matches`;if(d.results)return`${d.results.length} hits`;if(d.tables)return d.tables.map(t=>t.connector).join(', ');if(d.segments)return`${d.segments.length} segments`;if(d.pages)return d.pages.map(p=>p.cite).join(', ').slice(0,90);if(d.documents)return`${d.total} docs`;return''}
+function registerFromResult(d){if(!d)return;(d.results||[]).forEach(registerSource);(d.pages||[]).forEach(p=>registerSource({cite:p.cite,doc_id:d.doc_id,pdf_page:p.pdf_page}));(d.matches||[]).forEach(x=>{registerSource(x);(x.diagrams||[]).forEach(registerSource)})}
+
+/* ═════════════════ CITATION / PAGE VIEWER ═════════════════ */
+async function resolveCite(c){
+  const n=normCite(c);
+  if(SOURCES.has(n))return SOURCES.get(n);
+  // pin-out / wire citations open the wiring viewer
+  let m=c.match(/^iWDM\s+(\S+)\s+pin-?out/i);if(m)return {pins:m[1]};
+  m=c.match(/^iWDM\s+wire\s+(\S+)/i);if(m)return {wire:m[1]};
+  for(const [k,v] of SOURCES)if(k.startsWith(n)||n.startsWith(k))return v;
+  // catalog cite prefix + page / sheet
+  const pm=c.match(/\s(?:p|page\s*)(\d+)\s*$/i),sm=c.match(/\ssh(?:eet)?\s*([\d.]+)\s*$/i);
+  const base=normCite(c.replace(/\s(?:p|page\s*)\d+\s*$/i,'').replace(/\ssh(?:eet)?\s*[\d.]+\s*$/i,''));
+  let d=DATA.byCite.get(base);
+  if(!d){let best=null;for(const [k,v] of DATA.byCite)if(base.startsWith(k)&&(!best||k.length>best[0].length))best=[k,v];if(best)d=best[1]}
+  if(!d){const am=c.match(/^(AMM|SDM|IPC|SWPM|FSI)\s+(\d\d-\d\d-\d\d)/i);if(am)d=DATA.catalog.find(x=>x.m===am[1].toUpperCase()&&x.ata===am[2]&&x.model!=='PW800')||DATA.catalog.find(x=>x.m===am[1].toUpperCase()&&x.ata===am[2])}
+  if(!d)return null;
+  if(d.m==='iWDM'&&sm){const i=(d.dia||[]).indexOf(sm[1]);return{doc_id:d.id,pdf_page:i>=0?i+1:1}}
+  return{doc_id:d.id,pdf_page:Math.min(d.pages,Math.max(1,+(pm?pm[1]:1)))};
+}
+const svgUrls=new Map();
+async function svgUrl(path){
+  if(svgUrls.has(path))return svgUrls.get(path);
+  const txt=await fetchText(`wiring/svg/${path.replace(/\//g,'_')}.gz`);
+  const u=URL.createObjectURL(new Blob([txt],{type:'image/svg+xml'}));svgUrls.set(path,u);return u;
+}
+async function openPage(docId,page){
+  const pg=await getPage(docId,page);if(!pg){showModal('Page','<div class="errbox">Page not found.</div>');return}
+  const d=pg.doc;
+  const nav=`<div class="zbar"><button class="btn2 small" id="pgPrev" ${page<=1?'disabled':''}>◂ Prev</button><button class="btn2 small" id="pgNext" ${page>=d.pages?'disabled':''}>Next ▸</button><button class="btn2 small" id="pgCopy">Copy text</button>`;
+  if(d.m==='iWDM'){
+    const svg=(d.svgs||[])[page-1];
+    showModal(pg.cite,`<div class="kv"><b>iWDM — ${esc(d.title)}</b><br>System ${esc(d.c.slice(5))} · ATA ${esc(d.ata||'—')} · sheet ${esc((d.dia||[])[page-1]||page)} (${page} of ${d.pages})<br><span style="font-family:var(--mono);font-size:12px">${esc(d.path)}</span></div>
+     ${nav}<button class="btn2 small" id="zOut">−</button><button class="btn2 small" id="zIn">＋</button><button class="btn2 small" id="zFit">Fit</button></div>
+     <div class="svgbox" id="svgBox"><div class="hint" style="padding:12px;color:#333">Loading schematic…</div></div>
+     <details class="more" style="margin-top:10px"><summary>▸ Sheet text &amp; designators</summary><div class="pagetext">${esc(pg.text)}</div></details>`);
+    let z=1;const box=$('#svgBox');
+    const setZ=v=>{z=Math.min(8,Math.max(1,v));const im=box.querySelector('img');if(im)im.style.width=(z*100)+'%'};
+    $('#zIn').onclick=()=>setZ(z*1.6);$('#zOut').onclick=()=>setZ(z/1.6);$('#zFit').onclick=()=>setZ(1);
+    if(svg)svgUrl(svg).then(u=>{if(document.body.contains(box)){box.innerHTML=`<img alt="Wiring diagram" src="${u}">`;box.querySelector('img').ondblclick=()=>setZ(z*1.6)}}).catch(e=>{box.innerHTML=`<div class="errbox">${esc(e.message)}</div>`});
+  } else {
+    const local=`C:\\Gulfstream PDFs\\G600\\${d.path.replace(/\//g,'\\')}`;
+    showModal(pg.cite,`<div class="kv"><b>${esc(d.m)} — ${esc(d.title)}</b><br>${esc(d.type||'')} · ATA ${esc(d.ata||'—')} · page ${page} of ${d.pages}${d.rev?' · '+esc(d.rev):''}<br>PDF: <span style="font-family:var(--mono);font-size:12px">${esc(local)}</span> (page ${page})</div>
+     ${nav}</div><div class="pagetext">${esc(pg.text)}</div>`);
+  }
+  $('#pgPrev').onclick=()=>openPage(docId,page-1);$('#pgNext').onclick=()=>openPage(docId,page+1);
+  $('#pgCopy').onclick=()=>{navigator.clipboard?.writeText(`${pg.cite}\n${pg.text}`);$('#pgCopy').textContent='Copied'};
+}
+document.addEventListener('click',async e=>{
+  const c=e.target.closest('.cite');if(!c)return;
+  if(!DATA.ready){showModal('Reference','<div class="errbox">Manual data not loaded.</div>');return}
+  c.style.opacity=.5;const r=await resolveCite(c.dataset.cite);c.style.opacity='';
+  if(r&&r.pins)showPins(r.pins);else if(r&&r.wire)showWire(r.wire);else if(r)openPage(r.doc_id,r.pdf_page);else showModal(c.dataset.cite,'<div class="kv">This reference could not be matched to an indexed page. Try the Search Manuals tab.</div>');
+});
+
+/* ═════════════════ MODAL ═════════════════ */
+function showModal(title,html){$('#modalTitle').textContent=title;$('#modalBody').innerHTML=html;$('#modal').classList.remove('hidden');$('#modalBody').scrollTop=0}
+function hideModal(){$('#modal').classList.add('hidden')}
+$('#modalClose').onclick=hideModal;$('#modal').addEventListener('click',e=>{if(e.target.id==='modal')hideModal()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')hideModal()});
+
+/* ═════════════════ SETTINGS ═════════════════ */
+function openSettings(note){
+  showModal('SETTINGS',`
+  ${note?`<div class="errbox" style="margin-bottom:12px;color:var(--amber);border-color:var(--amber-dim);background:#1a1305">${esc(note)}</div>`:''}
+  <div class="field"><label>Anthropic API key</label><input id="stKey" type="password" value="${esc(cfg.anthropicKey)}" placeholder="sk-ant-…" autocomplete="off"></div>
+  <div class="field"><label>Model</label><select id="stModel">${MODELS.map(([v,l])=>`<option value="${v}" ${cfg.model===v?'selected':''}>${l}</option>`).join('')}</select></div>
+  <div class="field"><label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;font-family:var(--sans);font-size:14px;color:var(--text)"><input type="checkbox" id="stThink" style="width:auto" ${cfg.thinking?'checked':''}> Extended reasoning (slower, more thorough)</label></div>
+  <hr style="border:none;border-top:1px solid var(--border);margin:14px 0">
+  <div class="field"><label>Manual data source</label><select id="stMode"><option value="github" ${cfg.dataMode==='github'?'selected':''}>Private GitHub repo</option><option value="url" ${cfg.dataMode==='url'?'selected':''}>URL / local folder</option></select></div>
+  <div id="stGh">
+    <div class="grid2"><div class="field"><label>Data repo (owner/name)</label><input id="stRepo" value="${esc(cfg.dataRepo)}"></div><div class="field"><label>Branch</label><input id="stBranch" value="${esc(cfg.dataBranch)}"></div></div>
+    <div class="field"><label>GitHub token (read-only)</label><input id="stTok" type="password" value="${esc(cfg.githubToken)}" placeholder="github_pat_…" autocomplete="off">
+    <div class="hint">Fine-grained personal access token with <b>Contents: Read-only</b> on the data repo only.</div></div>
+  </div>
+  <div id="stUrl" class="field"><label>Data URL</label><input id="stDataUrl" value="${esc(cfg.dataUrl)}"></div>
+  <div class="field"><label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;font-family:var(--sans);font-size:14px;color:var(--text)"><input type="checkbox" id="stRemember" style="width:auto" ${cfg.remember?'checked':''}> Remember keys on this device</label>
+  <div class="hint">Keys are stored only in this browser and sent only to api.anthropic.com and api.github.com. Untick on shared devices; keys then clear when the tab closes.</div></div>
+  <button class="btn" id="stSave">Save &amp; connect</button>
+  <div id="stStatus" class="hint" style="margin-top:10px"></div>
+  <hr style="border:none;border-top:1px solid var(--border);margin:14px 0">
+  <h3 style="font-family:var(--mono);font-size:13px;color:var(--cyan);letter-spacing:2px;font-weight:400;margin-bottom:8px">OFFLINE</h3>
+  <div class="hint" style="margin-bottom:8px">Download the full manual index and wiring pin-outs (~8 MB) to this device so search, page lookup and wiring lookup work with poor hangar Wi-Fi. Schematic drawings load on demand and are kept once viewed. The AI itself still needs a connection.</div>
+  <button class="btn2" id="stOffline">Download all manuals for offline</button>
+  <div class="progress hidden" id="stProg"><div></div></div>
+  <div id="stAbout" class="disclaimer" style="margin-top:14px"></div>`);
+  const sync=()=>{const gh=$('#stMode').value==='github';$('#stGh').classList.toggle('hidden',!gh);$('#stUrl').classList.toggle('hidden',gh)};sync();$('#stMode').onchange=sync;
+  if(DATA.manifest)$('#stAbout').innerHTML=`<b>Library:</b> ${esc(DATA.manifest.aircraft)} · index built ${esc(DATA.manifest.built)}<br>${Object.entries(DATA.manifest.revisions).map(([k,v])=>`${k}: ${esc(v)}`).join(' · ')}<br><b>Known gaps:</b> ${DATA.manifest.gaps.map(esc).join(' · ')}`;
+  $('#stSave').onclick=async()=>{
+    Object.assign(cfg,{anthropicKey:$('#stKey').value.trim(),model:$('#stModel').value,thinking:$('#stThink').checked,dataMode:$('#stMode').value,dataRepo:$('#stRepo').value.trim(),dataBranch:$('#stBranch').value.trim()||'main',githubToken:$('#stTok').value.trim(),dataUrl:$('#stDataUrl').value.trim(),remember:$('#stRemember').checked});
+    saveCfg();DATA.shards.clear();DATA.pins.clear();DATA.comps=null;$('#stStatus').textContent='Connecting…';
+    await loadCore();
+    $('#stStatus').innerHTML=DATA.ready?`<span style="color:var(--green)">✔ Manual data connected — ${DATA.catalog.length.toLocaleString()} documents, ${DATA.faults.length.toLocaleString()} CAS messages.</span>${cfg.anthropicKey?'':' <span style="color:var(--amber)">Add an API key to use the AI.</span>'}`:`<span style="color:var(--red)">✖ ${esc($('#badges').dataset.err||'Could not load data')}</span>`;
+    if(DATA.ready&&cfg.anthropicKey)setTimeout(hideModal,900);
+  };
+  $('#stOffline').onclick=async()=>{
+    if(!DATA.ready){$('#stStatus').textContent='Connect the data source first.';return}
+    const files=[...Object.keys(DATA.manifest.shards).map(k=>`shards/${k}.json.gz`),'wiring/components.json.gz',...(DATA.manifest.wiring?.pinChapters||[]).map(c=>`wiring/pins/${c}.json.gz`)];
+    const bar=$('#stProg');bar.classList.remove('hidden');let n=0;$('#stOffline').disabled=true;
+    for(const f of files){try{await fetchData(f)}catch(e){$('#stStatus').textContent='Failed: '+e.message;break}bar.firstChild.style.width=(++n/files.length*100)+'%'}
+    $('#stOffline').textContent=n===files.length?'✔ All manuals stored on this device':'Retry download';$('#stOffline').disabled=false;
+  };
+}
+function setDot(s){$('#dataDot').className='dot '+s}
+function renderBadges(err){
+  const b=$('#badges');b.dataset.err=err||'';
+  if(err){b.innerHTML=`<span class="badge" style="color:var(--red);border-color:#5a1a1a">DATA OFFLINE</span><span class="badge">${esc(err.slice(0,80))}</span>`;return}
+  const amm=(DATA.manifest.revisions.AMM||'').match(/(\w+) \d+\/(\d\d)/);
+  b.innerHTML=`<span class="badge amber">${DATA.catalog.length.toLocaleString()} DOCS</span><span class="badge">AMM ${amm?esc(amm[1].slice(0,3).toUpperCase()+' '+amm[2]):''}</span><span class="badge">SDM R9</span><span class="badge">iWDM R4</span><span class="badge">${DATA.faults.length} CAS</span><span class="badge">IPC · SWPM · FSI</span><span class="badge" style="color:${cfg.anthropicKey?'var(--green)':'var(--amber)'}">${cfg.anthropicKey?'AI READY':'NO API KEY'}</span>`;
+}
+
+/* ═════════════════ INTAKE ═════════════════ */
+let selFaults=[],acIdx=-1,acItems=[];
+function renderFaultChips(){
+  $('#faultChips').innerHTML=selFaults.map((f,i)=>`<div class="fchip"><div><div class="t"><span class="cdot ${esc(f.color||'')}"></span>${esc(f.msg)}</div><div class="m">${f.custom?'<span class="warnnote">not in CAS tables — typed as entered</span>':`${f.color?esc(f.color)+' · ':''}ATA ${esc(f.ata||'?')} · ${esc(f.cite||'')}${f.cause?'<br>'+esc(f.cause.slice(0,160)):''}`}</div></div><button data-i="${i}" title="Remove">✕</button></div>`).join('');
+  $$('#faultChips button').forEach(b=>b.onclick=()=>{selFaults.splice(+b.dataset.i,1);renderFaultChips()});
+}
+function renderAc(){
+  const q=$('#faultInput').value.trim();const L=$('#faultList');
+  if(!q||!DATA.ready){L.classList.add('hidden');return}
+  acItems=searchFaults(q,12);
+  L.innerHTML=acItems.map((f,i)=>`<div class="acitem${i===acIdx?' sel':''}" data-i="${i}"><div class="acmsg cas-${esc(f.color||'x')}">${esc(f.msg)}</div><div class="acmeta">${f.color?esc(f.color)+' · ':''}ATA ${esc(f.ata)} · ${esc(f.cause?f.cause.slice(0,90):f.cite)}</div></div>`).join('')+
+    `<div class="acitem" data-custom="1"><div class="acmeta">Use “${esc(q)}” as typed</div></div>`;
+  L.classList.remove('hidden');
+  $$('#faultList .acitem').forEach(el=>el.onmousedown=e=>{e.preventDefault();pickFault(el.dataset.custom?null:acItems[+el.dataset.i])});
+}
+function pickFault(f){
+  if(!f){const q=$('#faultInput').value.trim();if(!q)return;f={msg:q,cause:'',color:'',ata:'',custom:true}}
+  if(!selFaults.some(x=>x.msg===f.msg&&x.ata===f.ata))selFaults.push(f);
+  $('#faultInput').value='';acIdx=-1;$('#faultList').classList.add('hidden');renderFaultChips();
+}
+$('#faultInput').addEventListener('input',()=>{acIdx=-1;renderAc()});
+$('#faultInput').addEventListener('keydown',e=>{
+  if(e.key==='ArrowDown'){acIdx=Math.min(acIdx+1,acItems.length-1);renderAc();e.preventDefault()}
+  else if(e.key==='ArrowUp'){acIdx=Math.max(acIdx-1,-1);renderAc();e.preventDefault()}
+  else if(e.key==='Enter'){e.preventDefault();pickFault(acIdx>=0?acItems[acIdx]:(acItems[0]||null))}
+});
+$('#faultInput').addEventListener('blur',()=>setTimeout(()=>$('#faultList').classList.add('hidden'),150));
+
+const READING_PRESETS=[['Duct / mix temp','°C'],['Bleed press','psi'],['Bleed temp','°C'],['Pack outlet temp','°C'],['Hyd press','psi'],['Oil press','psi'],['Oil temp','°C'],['Fuel temp','°C'],['N1','%'],['N2','%'],['TGT','°C'],['DC bus','V'],['AC bus','V'],['Gen load','A'],['Brake temp','°C'],['Tire press','psi']];
+function addReading(p='',v='',u=''){
+  const r=document.createElement('div');r.className='rrow';
+  r.innerHTML=`<input placeholder="Parameter" value="${esc(p)}"><input placeholder="Value" value="${esc(v)}"><input placeholder="Unit" value="${esc(u)}"><button type="button">✕</button>`;
+  r.querySelector('button').onclick=()=>r.remove();$('#readings').appendChild(r);if(!p)r.querySelector('input').focus();else r.children[1].focus();
+}
+$('#readingChips').innerHTML=READING_PRESETS.map(([p,u])=>`<button type="button" class="qchip" data-p="${esc(p)}" data-u="${esc(u)}">＋ ${esc(p)}</button>`).join('');
+$$('#readingChips .qchip').forEach(b=>b.onclick=()=>{$('#moreDetails').open=true;addReading(b.dataset.p,'',b.dataset.u)});
+$('#addReading').onclick=()=>addReading();
+
+let curTab='fault';
+$$('.tab').forEach(t=>t.onclick=()=>{
+  curTab=t.dataset.tab;$$('.tab').forEach(x=>x.classList.toggle('on',x===t));
+  $('#caseForm').classList.toggle('hidden',curTab==='search'||curTab==='wiring');$('#searchPane').classList.toggle('hidden',curTab!=='search');$('#wiringPane').classList.toggle('hidden',curTab!=='wiring');
+  $('#faultCard').style.order='';
+  if(curTab==='describe'){$('#describeCard').after($('#faultCard'));$('#descText').focus()}else if(curTab==='fault'){$('#faultCard').after($('#describeCard'))}
+  if(curTab==='search')$('#sQuery').focus();if(curTab==='wiring')$('#wQuery').focus();
+});
+const val=id=>$(id).value.trim();
+function collectForm(){
+  return {faults:selFaults,desc:val('#descText'),phase:val('#fPhase'),behavior:val('#fBehavior'),alt:val('#fAlt'),spd:val('#fSpd'),oat:val('#fOat'),cabAlt:val('#fCabAlt'),dp:val('#fDp'),rate:val('#fRate'),other:val('#fOther'),sn:val('#fSn'),side:val('#fSide'),recent:val('#fRecent'),done:val('#fDone'),
+    readings:$$('#readings .rrow').map(r=>[...r.querySelectorAll('input')].map(i=>i.value.trim())).filter(r=>r[0]||r[1])};
+}
+function caseText(f){
+  const L=['NEW TROUBLESHOOTING CASE'];
+  if(f.sn)L.push(`Aircraft: G600 s/n ${f.sn}`);
+  if(f.faults.length){L.push('CAS messages:');f.faults.forEach(x=>L.push(`  • ${x.msg}${x.color?` (${x.color})`:''}${x.ata?` — ATA ${x.ata}`:''}${x.cause?` — FSI logic: ${x.cause} [${x.cite}]`:''}${x.custom?' (typed; not matched in CAS tables)':''}`))}
+  if(f.desc)L.push(`Description: ${f.desc}`);
+  const c=[f.phase&&`Phase: ${f.phase}`,f.behavior&&`Behavior: ${f.behavior}`,f.side&&`Side: ${f.side}`,f.alt&&`Altitude: ${f.alt} ft`,f.spd&&`Speed: ${f.spd}`,f.oat&&`SAT/OAT: ${f.oat} °C`,f.cabAlt&&`Cabin alt: ${f.cabAlt} ft`,f.dp&&`Cabin ΔP: ${f.dp} psi`,f.rate&&`Cabin rate: ${f.rate} fpm`].filter(Boolean);
+  if(c.length)L.push('Conditions: '+c.join(' | '));
+  if(f.readings.length)L.push('Observed readings: '+f.readings.map(r=>`${r[0]} = ${r[1]}${r[2]?' '+r[2]:''}`).join('; '));
+  if(f.other)L.push(`Maintenance messages / CMC history: ${f.other}`);
+  if(f.recent)L.push(`Recent maintenance: ${f.recent}`);
+  if(f.done)L.push(`Already checked / done: ${f.done}`);
+  return L.join('\n');
+}
+$('#btnStart').onclick=async()=>{
+  const f=collectForm();
+  if(!f.faults.length&&!f.desc){$('#faultInput').focus();flash($('#btnStart'),'ENTER A MESSAGE OR DESCRIPTION');return}
+  if(!DATA.ready){openSettings('Connect the manual data source first.');return}
+  if(!cfg.anthropicKey){openSettings('Add your Anthropic API key to start troubleshooting.');return}
+  const text=caseText(f);
+  f.faults.forEach(x=>{if(x.cite&&x.doc!=null)registerSource({cite:x.cite,doc_id:x.doc,pdf_page:x.page})});
+  const title=(f.faults[0]?.msg||f.desc).slice(0,48);
+  CASE={id:Date.now().toString(36),title,created:Date.now(),updated:Date.now(),form:f,usage:{in:0,out:0},msgs:[{role:'user',content:[{type:'text',text}]}]};
+  showChat();renderCase();saveCase();runAgent();
+};
+function flash(btn,msg){const o=btn.textContent;btn.textContent=msg;btn.disabled=true;setTimeout(()=>{btn.textContent=o;btn.disabled=false},1600)}
+function resetForm(){selFaults=[];renderFaultChips();['#descText','#fAlt','#fSpd','#fOat','#fCabAlt','#fDp','#fRate','#fOther','#fSn','#fRecent','#fDone','#faultInput'].forEach(i=>$(i).value='');['#fPhase','#fBehavior','#fSide'].forEach(i=>$(i).value='');$('#readings').innerHTML='';$('#moreDetails').open=false}
+
+/* ═════════════════ CHAT ═════════════════ */
+function showChat(){$('#intakeView').classList.add('hidden');$('#chatView').classList.remove('hidden')}
+function showIntake(){$('#chatView').classList.add('hidden');$('#intakeView').classList.remove('hidden');$('#caseTitle').textContent='';$('#main').scrollTop=0}
+const FOLLOW=['What should I check next?','Show me the wiring for this','Which connector pins / wires do I meter?','Which SSPC / CB powers this?','Part numbers for the likely LRU','Ops check after the repair','Explain the system logic','Summarize for the logbook'];
+function renderFollowChips(){$('#followChips').innerHTML=FOLLOW.map(t=>`<button class="qchip">${esc(t)}</button>`).join('');$$('#followChips .qchip').forEach(b=>b.onclick=()=>{$('#chatInput').value=b.textContent;sendChat()})}
+function setSendState(){const s=$('#btnSend');s.classList.toggle('stop',BUSY);s.textContent=BUSY?'■':'▸';s.title=BUSY?'Stop':'Send'}
+function sendChat(){
+  if(BUSY){ABORT?.abort();return}
+  const t=$('#chatInput').value.trim();if(!t||!CASE)return;
+  $('#chatInput').value='';autoGrow();
+  const last=CASE.msgs[CASE.msgs.length-1];
+  if(last&&last.role==='user'){last.content.push({type:'text',text:t})}else CASE.msgs.push({role:'user',content:[{type:'text',text:t}]});
+  const d=document.createElement('div');d.className='msg user';d.textContent=t;$('#chatLog').appendChild(d);stickBottom=true;autoScroll();
+  runAgent();
+}
+$('#btnSend').onclick=sendChat;
+$('#chatInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!/Mobi/.test(navigator.userAgent)){e.preventDefault();sendChat()}});
+function autoGrow(){const t=$('#chatInput');t.style.height='auto';t.style.height=Math.min(t.scrollHeight,160)+'px'}
+$('#chatInput').addEventListener('input',autoGrow);
+
+/* ═════════════════ CASES (local history) ═════════════════ */
+function loadCases(){return store.get('g600ts_cases',[])}
+function saveCase(){
+  if(!CASE)return;CASE.updated=Date.now();
+  let cases=loadCases().filter(c=>c.id!==CASE.id);cases.unshift(CASE);cases=cases.slice(0,20);
+  for(;;){try{localStorage.setItem('g600ts_cases',JSON.stringify(cases));break}catch(e){if(cases.length<=1)break;cases.pop()}}
+  try{localStorage.setItem('g600ts_current',JSON.stringify(CASE.id))}catch(e){}
+}
+$('#btnCases').onclick=()=>{
+  const cases=loadCases();
+  showModal('RECENT CASES',cases.length?`<div class="caselist">${cases.map(c=>`<div class="ci"><div class="t" data-id="${c.id}"><div>${esc(c.title)}</div><div>${new Date(c.updated).toLocaleString()} · ${c.msgs.filter(m=>m.role==='assistant').length} replies</div></div><button class="btn2 small danger" data-del="${c.id}">Delete</button></div>`).join('')}</div>`:'<div class="kv">No saved cases on this device yet.</div>');
+  $$('.caselist .t').forEach(el=>el.onclick=()=>{CASE=loadCases().find(c=>c.id===el.dataset.id);hideModal();showChat();renderCase()});
+  $$('.caselist [data-del]').forEach(b=>b.onclick=()=>{const cs=loadCases().filter(c=>c.id!==b.dataset.del);try{localStorage.setItem('g600ts_cases',JSON.stringify(cs))}catch(e){}if(CASE&&CASE.id===b.dataset.del){CASE=null;showIntake()}$('#btnCases').onclick()});
+};
+$('#btnNew').onclick=()=>{if(BUSY)ABORT?.abort();CASE=null;try{localStorage.removeItem('g600ts_current')}catch(e){}resetForm();showIntake()};
+$('#btnExport').onclick=()=>{
+  if(!CASE){showModal('EXPORT','<div class="kv">Open a case first.</div>');return}
+  let out=`# G600 Troubleshooting Case — ${CASE.title}\nOpened ${new Date(CASE.created).toLocaleString()} · model ${cfg.model}\n\n`;
+  for(const m of CASE.msgs){
+    if(m.role==='user'){const t=m.content.filter(b=>b.type==='text'&&!b.text.startsWith('<<CONTEXT>>')).map(b=>b.text).join('\n');if(t)out+=`## Technician\n${t}\n\n`}
+    else{const t=m.content.filter(b=>b.type==='text').map(b=>b.text).join('\n');const tools=m.content.filter(b=>b.type==='tool_use').map(b=>'- '+toolLabel(b)).join('\n');if(tools)out+=`<details><summary>Manual lookups</summary>\n\n${tools}\n\n</details>\n\n`;if(t)out+=`## Assistant\n${t}\n\n`}
+  }
+  out+=`---\nTroubleshooting aid output. Verify against current approved maintenance data before maintenance or return to service.\n`;
+  const blob=new Blob([out],{type:'text/markdown'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`G600-case-${CASE.title.replace(/[^A-Za-z0-9]+/g,'-').slice(0,40)}-${new Date(CASE.created).toISOString().slice(0,10)}.md`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+};
+$('#btnSettings').onclick=()=>openSettings();
+
+/* ═════════════════ DIRECT SEARCH ═════════════════ */
+function fillChapterSelect(){
+  const names={};
+  for(const d of DATA.catalog)if(d.m==='SDM'&&d.ata&&/-00-00$/.test(d.ata)){const t=d.title.split('—')[0].trim();if(t&&!names[d.ata.slice(0,2)])names[d.ata.slice(0,2)]=t.charAt(0)+t.slice(1).toLowerCase()}
+  $('#sChap').innerHTML='<option value="">Auto (best match)</option>'+Object.keys(DATA.manifest.shards).sort().map(k=>`<option value="${k}">${k==='fsi'?'FSI overview books (avionics, synoptics, EER, schematics)':k==='gen'?'General / front matter / CB list':'ATA '+k+(names[k]?' — '+esc(names[k]):'')}</option>`).join('');
+  $('#sManuals').innerHTML=MANS.map(m=>`<label><input type="checkbox" value="${m}" checked> ${m}</label>`).join('');
+}
+async function doSearch(){
+  const q=$('#sQuery').value.trim();if(!q||!DATA.ready)return;
+  const ms=$$('#sManuals input:checked').map(i=>i.value);
+  $('#sResults').innerHTML='<div class="hint">Searching…</div>';
+  try{
+    const ch=$('#sChap').value;
+    const r=await searchManuals(q,{chapters:ch?[ch]:null,manuals:ms.length===MANS.length?null:ms,max:25});
+    const terms=qtok(q);
+    const hl=s=>{let h=esc(s);for(const t of terms){if(t.length<2)continue;h=h.replace(new RegExp('('+t.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','gi'),'<mark>$1</mark>')}return h};
+    $('#sResults').innerHTML=`<div class="hint" style="margin:-4px 0 10px">${r.results.length} results · ${r.chapters.length>8?'all chapters searched':'chapters searched: '+r.chapters.join(', ')}</div>`+r.results.map(x=>`<div class="res" data-d="${x.doc_id}" data-p="${x.pdf_page}"><div class="h"><span class="mt">${esc(x.manual)}</span><span class="ttl">${esc(x.title)}</span></div><div class="lb">${esc(x.cite)} · ${esc(x.doc_type||'')}</div><div class="sn">${hl(x.snippet)}</div></div>`).join('');
+    $$('#sResults .res').forEach(el=>el.onclick=()=>openPage(+el.dataset.d,+el.dataset.p));
+  }catch(e){$('#sResults').innerHTML=`<div class="errbox">${esc(e.message)}</div>`}
+}
+$('#sGo').onclick=doSearch;$('#sQuery').addEventListener('keydown',e=>{if(e.key==='Enter')doSearch()});
+
+/* ═════════════════ WIRING LOOKUP (no AI) ═════════════════ */
+function diagLinks(ds){return (ds||[]).map(x=>x.doc_id!=null?`<span class="dlink" data-d="${x.doc_id}" data-p="${x.pdf_page}">${esc(x.system)} sh ${esc(x.sheet)}</span>`:`<span class="dlink" style="opacity:.5">${esc(x.system)} ${esc(x.sheet)}</span>`).join('')}
+function bindDiag(root){root.querySelectorAll('.dlink[data-d]').forEach(el=>el.onclick=e=>{e.stopPropagation();openPage(+el.dataset.d,+el.dataset.p)});root.querySelectorAll('[data-pins]').forEach(el=>el.onclick=e=>{e.stopPropagation();showPins(el.dataset.pins)})}
+function pinsHtml(tables){
+  return tables.map(t=>`<div class="kv" style="margin:12px 0 6px"><b>${esc(t.connector)}</b> · harness ${esc(t.harness||'—')} · ${t.rows.length} cavities</div>
+   <div class="pwrap"><table class="ptable"><tr><th>Pin</th><th>Wire</th><th>Signal</th><th>Color</th><th>Far end</th><th>Wire P/N</th></tr>${t.rows.map(r=>`<tr><td>${esc(r[0])}</td><td>${esc(r[2]||'—')}</td><td>${esc(r[1]||'')}</td><td>${esc(r[5]&&r[5]!=='Not Applicable'?r[5]:'')}</td><td class="mate" data-pins="${esc(r[8]||'')}">${r[8]?esc(r[8]+'-'+r[7]):''}</td><td>${esc(r[3]||'')}</td></tr>`).join('')}</table></div>`).join('');
+}
+async function showPins(name){
+  if(!name)return;
+  showModal(`iWDM ${name} pin-out`,'<div class="hint">Loading…</div>');
+  try{
+    const [t,c]=await Promise.all([connectorPins(name),findComponents(name,{max:3})]);
+    const comp=c.find(x=>x[0].toUpperCase()===name.toUpperCase());
+    $('#modalBody').innerHTML=(comp?`<div class="kv"><b>${esc(comp[0])}</b> · ${esc(CTYPE[comp[1]]||'')} · ${esc(comp[4]||'')}<br>P/N ${esc(comp[2]||'—')} · ATA ${esc(comp[5]||'—')}<br>${diagLinks(compObj(comp).diagrams)}</div>`:'')+
+      (t.length?pinsHtml(t)+'<div class="hint">Tap a far-end connector to open its pin-out. Gauge is in the wire number (e.g. …A20-4 = 20 AWG).</div>':'<div class="errbox">No pin table for this designator. Devices (e.g. 006A5) connect through connectors such as 006A5P1 / J1.</div>');
+    bindDiag($('#modalBody'));
+  }catch(e){$('#modalBody').innerHTML=`<div class="errbox">${esc(e.message)}</div>`}
+}
+async function showWire(w){
+  showModal(`iWDM wire ${w}`,'<div class="hint">Tracing…</div>');
+  try{
+    const r=await traceWire(w);
+    $('#modalBody').innerHTML=r.length?`<div class="pwrap"><table class="ptable"><tr><th>Wire</th><th>End 1</th><th>End 2</th><th>Color</th></tr>${r.map(x=>`<tr><td>${esc(x.wire)}</td><td class="mate" data-pins="${esc(x.end1.replace(/-[^-]+$/,''))}">${esc(x.end1)}</td><td class="mate" data-pins="${esc(x.end2.replace(/-[^-]+$/,''))}">${esc(x.end2)}</td><td>${esc(x.color||'')}</td></tr>`).join('')}</table></div><div class="hint">Each row is one segment between connector pins. Tap a connector to see its full pin-out.</div>`:'<div class="errbox">Wire not found in the pin tables.</div>';
+    bindDiag($('#modalBody'));
+  }catch(e){$('#modalBody').innerHTML=`<div class="errbox">${esc(e.message)}</div>`}
+}
+async function doWiring(){
+  const q=$('#wQuery').value.trim();if(!q||!DATA.ready)return;const mode=$('#wMode').value;
+  if(mode==='pins'){showPins(q.toUpperCase());return}
+  if(mode==='wire'){showWire(q.toUpperCase());return}
+  $('#wResults').innerHTML='<div class="hint">Searching…</div>';
+  try{
+    const r=await findComponents(q,{max:40});
+    $('#wResults').innerHTML=r.length?r.map(c=>`<div class="res"${c[6]?` data-pins="${esc(c[0])}"`:''}><div class="h"><span class="mt">${esc(c[1]==='D'?'LRU':c[1]==='C'?'CONN':c[1]==='I'?'INLINE':c[1]==='S'?'SPLICE':'GND')}</span><span class="ttl">${esc(c[0])}</span><span class="lb">${esc(c[4]||'')}</span></div><div class="lb">P/N ${esc(c[2]||'—')}${c[3]?' · harness '+esc(c[3]):''} · ATA ${esc(c[5]||'—')}${c[6]?' · '+c[6]+' pins — tap for pin-out':''}</div><div>${diagLinks(compObj(c).diagrams)}</div></div>`).join(''):'<div class="hint">No matching components.</div>';
+    bindDiag($('#wResults'));
+  }catch(e){$('#wResults').innerHTML=`<div class="errbox">${esc(e.message)}</div>`}
+}
+$('#wGo').onclick=doWiring;$('#wQuery').addEventListener('keydown',e=>{if(e.key==='Enter')doWiring()});
+
+/* ═════════════════ BOOT ═════════════════ */
+(async function boot(){
+  renderFaultChips();renderFollowChips();
+  const needsSetup=cfg.dataMode==='github'&&!cfg.githubToken;
+  if(needsSetup){setDot('err');renderBadges('Not connected — open Settings');openSettings('Welcome. Connect your private manual data repo and add your Anthropic API key to get started.');}
+  else await loadCore();
+  const cur=store.get('g600ts_current',null);
+  if(cur){const c=loadCases().find(x=>x.id===cur);if(c){CASE=c;showChat();renderCase()}}
+})();
+</script>
+</body>
+</html>
