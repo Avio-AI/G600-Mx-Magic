@@ -212,7 +212,6 @@ mark{background:var(--mark-bg);color:var(--amber-glow);border-radius:2px}
     <section class="view" id="intakeView">
       <div class="tabs">
         <button class="tab on" data-tab="describe">Describe</button>
-        <button class="tab" data-tab="fault">CAS / CMC</button>
         <button class="tab" data-tab="search">Search</button>
         <button class="tab" data-tab="wiring">Wiring</button>
       </div>
@@ -1326,13 +1325,13 @@ $$('#readingChips .qchip').forEach(b=>b.onclick=()=>{$('#moreDetails').open=true
 $('#addReading').onclick=()=>addReading();
 
 let curTab='describe';
-{const cf=$('#caseForm');['#cmcCard','#faultCard','#describeCard'].forEach(id=>cf.prepend($(id)))}
+
 $$('.tab').forEach(t=>t.onclick=()=>{
   curTab=t.dataset.tab;$$('.tab').forEach(x=>x.classList.toggle('on',x===t));
   $('#caseForm').classList.toggle('hidden',curTab==='search'||curTab==='wiring');$('#searchPane').classList.toggle('hidden',curTab!=='search');$('#wiringPane').classList.toggle('hidden',curTab!=='wiring');
-  const ord={describe:['#describeCard','#faultCard','#cmcCard'],fault:['#faultCard','#cmcCard','#describeCard']}[curTab];
+  const ord={describe:['#faultCard','#cmcCard','#describeCard']}[curTab];
   if(ord){const order=ord;const cf=$('#caseForm');for(const id of order.slice().reverse())cf.prepend($(id))}
-  if(curTab==='describe')$('#descText').focus();if(curTab==='fault')$('#faultInput').focus();
+  if(curTab==='fault')$('#faultInput').focus();
   if(curTab==='search')$('#sQuery').focus();if(curTab==='wiring')$('#wQuery').focus();
 });
 const val=id=>$(id).value.trim();
