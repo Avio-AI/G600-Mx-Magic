@@ -31,6 +31,9 @@ input:focus,select:focus,textarea:focus{border-color:var(--amber-dim)}
 textarea{resize:vertical;min-height:90px;line-height:1.45}
 label{font-family:var(--mono);font-size:12px;letter-spacing:1px;color:var(--text-dim);text-transform:uppercase;display:block;margin-bottom:5px}
 .hidden{display:none!important}
+.synclbl{display:flex!important;gap:8px;align-items:center;text-transform:none!important;letter-spacing:0!important;font-family:var(--sans)!important;font-size:14px!important;color:var(--text)!important;cursor:pointer}
+.synclbl input{width:auto;transform:scale(1.15)}
+input[readonly]{opacity:.65}
 #fReg,#fApt,#exReg{text-transform:uppercase}
 
 #app{display:flex;flex-direction:column;height:100dvh;max-width:min(860px,100vw);width:100%;overflow-x:hidden;margin:0 auto;border-left:1px solid var(--border);border-right:1px solid var(--border)}
@@ -274,6 +277,7 @@ mark{background:var(--mark-bg);color:var(--amber-glow);border-radius:2px}
             <div class="grid2">
               <div class="field"><label>Aircraft total time</label><input id="fTT" inputmode="decimal" placeholder="hrs, e.g. 4,312.6"></div>
               <div class="field"><label>Aircraft cycles</label><input id="fCyc" inputmode="numeric" placeholder="e.g. 2,145"></div>
+              <div class="field" style="grid-column:1/-1;margin:-2px 0 8px"><label class="synclbl"><input type="checkbox" id="fSyncEng"> Engine hours &amp; cycles same as aircraft</label></div>
               <div class="field"><label>Engine hours</label><input id="fEngHrs" placeholder="e.g. L 4,301 / R 4,298"></div>
               <div class="field"><label>Engine cycles</label><input id="fEngCyc" placeholder="e.g. L 2,140 / R 2,139"></div>
               <div class="field"><label>APU hours</label><input id="fApuHrs" inputmode="decimal" placeholder="e.g. 1,877"></div>
@@ -1316,6 +1320,18 @@ $('#cmcInput').addEventListener('keydown',e=>{
 });
 $('#cmcInput').addEventListener('blur',()=>setTimeout(()=>$('#cmcList').classList.add('hidden'),150));
 
+
+/* ── engine times mirror aircraft times when the box is ticked (setting remembered on this device) ── */
+const SYNC_KEY='g600ts_synceng';
+function syncEngTimes(){
+  const on=$('#fSyncEng').checked;
+  for(const [src,dst] of [['#fTT','#fEngHrs'],['#fCyc','#fEngCyc']]){const d=$(dst);d.readOnly=on;if(on)d.value=$(src).value}
+}
+$('#fSyncEng').checked=!!store.get(SYNC_KEY,false);
+$('#fSyncEng').addEventListener('change',()=>{store.set(SYNC_KEY,$('#fSyncEng').checked);if(!$('#fSyncEng').checked){$('#fEngHrs').value='';$('#fEngCyc').value=''}syncEngTimes()});
+['#fTT','#fCyc'].forEach(id=>$(id).addEventListener('input',syncEngTimes));
+syncEngTimes();
+
 const READING_PRESETS=[['Duct / mix temp','°C'],['Bleed press','psi'],['Bleed temp','°C'],['Pack outlet temp','°C'],['Hyd press','psi'],['Oil press','psi'],['Oil temp','°C'],['Fuel temp','°C'],['N1','%'],['N2','%'],['TGT','°C'],['DC bus','V'],['AC bus','V'],['Gen load','A'],['Brake temp','°C'],['Tire press','psi']];
 function addReading(p='',v='',u=''){
   const r=document.createElement('div');r.className='rrow';
@@ -1371,7 +1387,7 @@ $('#btnStart').onclick=async()=>{
   showChat();renderCase();saveCase();runAgent();
 };
 function flash(btn,msg){const o=btn.textContent;btn.textContent=msg;btn.disabled=true;setTimeout(()=>{btn.textContent=o;btn.disabled=false},1600)}
-function resetForm(){selFaults=[];renderFaultChips();selCmc=[];renderCmcChips();$('#cmcInput').value='';['#descText','#fAlt','#fSpd','#fOat','#fCabAlt','#fDp','#fRate','#fOther','#fSn','#fReg','#fApt','#fTT','#fCyc','#fEngHrs','#fEngCyc','#fApuHrs','#fRecent','#fDone','#faultInput'].forEach(i=>$(i).value='');prefillAircraft();$('#timesDetails').open=false;['#fPhase','#fBehavior','#fSide'].forEach(i=>$(i).value='');$('#readings').innerHTML='';$('#moreDetails').open=false}
+function resetForm(){selFaults=[];renderFaultChips();selCmc=[];renderCmcChips();$('#cmcInput').value='';['#descText','#fAlt','#fSpd','#fOat','#fCabAlt','#fDp','#fRate','#fOther','#fSn','#fReg','#fApt','#fTT','#fCyc','#fEngHrs','#fEngCyc','#fApuHrs','#fRecent','#fDone','#faultInput'].forEach(i=>$(i).value='');prefillAircraft();$('#timesDetails').open=false;syncEngTimes();['#fPhase','#fBehavior','#fSide'].forEach(i=>$(i).value='');$('#readings').innerHTML='';$('#moreDetails').open=false}
 
 /* ═════════════════ CHAT ═════════════════ */
 function showChat(){$('#intakeView').classList.add('hidden');$('#chatView').classList.remove('hidden')}
