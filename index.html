@@ -50,7 +50,7 @@ header{padding:calc(12px + var(--safe-t)) calc(16px + env(safe-area-inset-right,
 main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .view{padding:16px}
 .tabs{display:flex;gap:6px;margin-bottom:14px;background:var(--surface);padding:4px;border-radius:8px;border:1px solid var(--border)}
-.tab{flex:1;background:none;border:none;color:var(--text-dim);font-weight:700;font-size:14px;padding:10px 6px;border-radius:6px}
+.tab{flex:1;background:none;border:none;color:var(--text-dim);font-weight:700;font-size:14px;padding:10px 4px;border-radius:6px;white-space:nowrap;min-width:0}
 .tab.on{background:var(--panel2);color:var(--amber);box-shadow:inset 0 -2px 0 var(--amber)}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:14px}
 .card h3{font-family:var(--mono);font-size:13px;letter-spacing:2px;color:var(--cyan);font-weight:400;margin-bottom:10px;text-transform:uppercase}
@@ -213,6 +213,7 @@ mark{background:var(--mark-bg);color:var(--amber-glow);border-radius:2px}
       <div class="tabs">
         <button class="tab on" data-tab="describe">Describe</button>
         <button class="tab" data-tab="fault">CAS</button>
+        <button class="tab" data-tab="cmc">CMC</button>
         <button class="tab" data-tab="search">Search</button>
         <button class="tab" data-tab="wiring">Wiring</button>
       </div>
@@ -230,7 +231,17 @@ mark{background:var(--mark-bg);color:var(--amber-glow);border-radius:2px}
             <div class="aclist hidden" id="faultList"></div>
           </div>
           <div class="chips" id="faultChips"></div>
-          <div class="hint" id="faultHint">Searches the G500/G600 CAS message tables (message, color, trigger logic). Add every message that's showing, not just the first. Put maintenance messages / CMC fault text in the description or history fields.</div>
+          <div class="hint" id="faultHint">Searches the G500/G600 CAS message tables (message, color, trigger logic). Add every message that's showing, not just the first.</div>
+        </div>
+
+        <div class="card" id="cmcCard">
+          <h3>CMC maintenance message / fault code</h3>
+          <div class="ac">
+            <input id="cmcInput" placeholder="Code or message, e.g. 2480023SPL1" autocomplete="off" autocapitalize="characters" spellcheck="false">
+            <div class="aclist hidden" id="cmcList"></div>
+          </div>
+          <div class="chips" id="cmcChips"></div>
+          <div class="hint">Type the fault code or the maintenance message name from the CMC. Fault codes are decoded (ATA, fault number, reporting unit) and matched to the AMM / FSI pages that name the message.</div>
         </div>
 
         <div class="card">
@@ -402,7 +413,7 @@ async function loadCore(){
   DATA.ready=false;
   try{
     DATA.manifest=await fetchData('manifest.json',{cache:false});
-    [DATA.catalog,DATA.faults]=await Promise.all([fetchData('catalog.json'),fetchData('faults.json')]);
+    [DATA.catalog,DATA.faults,DATA.cmc]=await Promise.all([fetchData('catalog.json'),fetchData('faults.json'),fetchData('cmc.json').catch(()=>({messages:[],codes:[]}))]);
     DATA.byCite=new Map(DATA.catalog.map(d=>[normCite(d.c),d]));
     DATA.wsys=new Map(DATA.catalog.filter(d=>d.m==='iWDM').map(d=>[d.c.slice(5),d]));
     DATA.ready=true; setDot('ok'); renderBadges(); fillChapterSelect();
@@ -584,11 +595,47 @@ function searchFaults(q,max=12){
   return out.sort((a,b)=>b[0]-a[0]).slice(0,max).map(x=>x[1]);
 }
 
+/* ═════════════════ CMC ═════════════════ */
+const RX_CMCCODE=/^(\d{2})(\d{2})(\d{3})([A-Z][A-Z0-9]{1,5})$/;
+function decodeCmc(code){const m=String(code||'').toUpperCase().replace(/\s+/g,'').match(RX_CMCCODE);return m?{code:m[0],ata:`${m[1]}-${m[2]}`,num:m[3],lru:m[4]}:null}
+function searchCmc(q,max=12){
+  const raw=String(q||'').trim();if(!raw)return [];
+  const out=[],dec=decodeCmc(raw);const D=DATA.cmc||{messages:[],codes:[]};
+  if(dec){const known=D.codes.find(c=>c.c===dec.code);out.push({kind:'code',code:dec.code,ata:dec.ata,num:dec.num,lru:dec.lru,refs:known?known.r:[],sameLru:D.messages.filter(m=>m.u===dec.lru).slice(0,6).map(m=>m.m)})}
+  const Q=normMsg(raw),terms=Q.split(' ').filter(Boolean);
+  const sc=[];
+  for(const m of D.messages){const M=normMsg(m.m);if(!terms.every(t=>M.includes(t)||m.a.replace('-','').startsWith(t)))continue;
+    let s=0;if(M===Q)s+=100;if(M.startsWith(Q))s+=30;if(normMsg(m.u)===terms[0])s+=10;s-=M.length/40;sc.push([s,m])}
+  sc.sort((a,b)=>b[0]-a[0]);for(const [,m] of sc.slice(0,max))out.push({kind:'msg',msg:m.m,lru:m.u,ata:m.a,refs:m.r});
+  return out;
+}
+function cmcLine(x){return x.kind==='code'?`${x.code} — ATA ${x.ata}, fault ${x.num}, reported by ${x.lru}`:`${x.msg}${x.ata?` — ATA ${x.ata}`:''}, reported by ${x.lru}`}
+let selCmc=[],cmcIdx=-1,cmcItems=[];
+function renderCmcChips(){
+  $('#cmcChips').innerHTML=selCmc.map((x,i)=>`<div class="fchip"><div><div class="t">${esc(x.kind==='code'?x.code:x.msg)}</div><div class="m">${x.custom?'<span class="warnnote">not in the index — sent as typed</span>':esc(x.kind==='code'?`ATA ${x.ata} · fault ${x.num} · reported by ${x.lru}`:`reported by ${x.lru}${x.ata?' · ATA '+x.ata:''}`)}${x.refs&&x.refs.length?' · '+esc(x.refs.slice(0,2).map(r=>r[2]).join(', ')):''}</div></div><button data-i="${i}" title="Remove">✕</button></div>`).join('');
+  $$('#cmcChips button').forEach(b=>b.onclick=()=>{selCmc.splice(+b.dataset.i,1);renderCmcChips()});
+}
+function renderCmcAc(){
+  const q=$('#cmcInput').value.trim(),L=$('#cmcList');if(!q||!DATA.ready){L.classList.add('hidden');return}
+  cmcItems=searchCmc(q,12);
+  L.innerHTML=cmcItems.map((x,i)=>`<div class="acitem${i===cmcIdx?' sel':''}" data-i="${i}"><div class="acmsg">${esc(x.kind==='code'?x.code:x.msg)}</div><div class="acmeta">${esc(x.kind==='code'?`Fault code · ATA ${x.ata} · fault ${x.num} · reported by ${x.lru}${x.refs.length?'':' (decoded)'}`:`Reported by ${x.lru}${x.ata?' · ATA '+x.ata:''} · ${x.refs.length} reference${x.refs.length===1?'':'s'}`)}</div></div>`).join('')+
+    `<div class="acitem" data-custom="1"><div class="acmeta">Use “${esc(q)}” as typed</div></div>`;
+  L.classList.remove('hidden');
+  $$('#cmcList .acitem').forEach(el=>el.onmousedown=e=>{e.preventDefault();pickCmc(el.dataset.custom?null:cmcItems[+el.dataset.i])});
+}
+function pickCmc(x){
+  if(!x){const q=$('#cmcInput').value.trim();if(!q)return;x={kind:'msg',msg:q.toUpperCase(),lru:q.split('-')[0].toUpperCase(),ata:'',refs:[],custom:true}}
+  if(!selCmc.some(y=>(y.code||y.msg)===(x.code||x.msg)))selCmc.push(x);
+  $('#cmcInput').value='';cmcIdx=-1;$('#cmcList').classList.add('hidden');renderCmcChips();
+}
+
 /* ═════════════════ AI TOOLS ═════════════════ */
 const MANS=['AMM','SDM','FSI','iWDM','IPC','SWPM','ERC'];
 const TOOLS=[
  {name:'lookup_cas',description:'Look up G600 CAS messages in the FlightSafety G500/G600 MTM CAS tables (~560 messages). Returns message, color (red=warning, amber=caution, blue/cyan=advisory, white=status, when known), the trigger logic/cause text, ATA chapter and an FSI citation (doc_id/pdf_page) for the CAS table page. "L-R" means the message exists per side. This is training data: confirm logic against SDM/AMM.',
   input_schema:{type:'object',properties:{query:{type:'string',description:'Message words, e.g. "pack fail", "bleed air hot", "CPCS"'}},required:['query']}},
+ {name:'lookup_cmc',description:'Look up a G600 CMC maintenance message (e.g. "FCC1-IRU 1 NO DATA") or decode a CMC fault code (e.g. "2480023SPL1" = ATA 24-80, fault 023, reported by SPL1). Returns the decoded code, the reporting LRU/function mnemonic (text before the hyphen in a message name), the ATA, and the AMM / FSI pages that name the message (often an operational test that clears it). There is no G600 fault-code list in this library: use the ATA + reporting unit to direct SDM/FSI/AMM searches.',
+  input_schema:{type:'object',properties:{query:{type:'string',description:'Maintenance message words or the fault code'}},required:['query']}},
  {name:'search_manuals',description:'Keyword (BM25) search over page text, by ATA chapter: AMM (S1000D data modules: descriptions, servicing, inspections, operational/functional tests, removal/installation, general maintenance incl. circuit breaker list), SDM (system description manual: system theory, components, controls, CAS logic), FSI (G500/G600 maintenance training manual), iWDM (wiring diagram sheets: designators, wire numbers, LOC text on each sheet), IPC, SWPM (standard wiring practices), ERC (engine run checklist). Returns ranked page snippets with doc_id, pdf_page and a citation string. Use specific technical terms, component names, reference designators (e.g. 006A5), CAS wording or ATA numbers. Specify ata_chapters whenever you know the system. Run several focused searches rather than one vague one.',
   input_schema:{type:'object',properties:{query:{type:'string'},ata_chapters:{type:'array',items:{type:'string'},description:'Two-digit ATA chapters, e.g. ["21","36"]. "gen" = general/front matter (incl. circuit breaker list), "fsi" = FSI overview books (avionics overview, synoptics, EER racks, schematics). Omit to auto-select.'},manuals:{type:'array',items:{type:'string',enum:MANS},description:'Restrict to these manuals'},max_results:{type:'integer',description:'Default 8, max 15'}},required:['query']}},
  {name:'read_pages',description:'Read the full text of one or more consecutive pages of a document (doc_id from search/list results). For iWDM documents each "page" is one wiring diagram sheet and returns its devices, designators and sheet text. Use to get complete steps, limits, tolerances, tables, logic or wiring around a hit. Max 4 pages per call.',
@@ -608,6 +655,10 @@ async function runTool(name,input){
     if(name==='lookup_cas'||name==='lookup_fault'){
       const r=searchFaults(input.query||'',15);r.forEach(f=>registerSource({cite:f.cite,doc_id:f.doc,pdf_page:f.page}));
       return {summary:`${r.length} match${r.length===1?'':'es'}`,data:{matches:r.map(f=>({message:f.msg,color:f.color||'(not stated)',trigger_logic:f.cause||'(listed without a cause in the FSI; search SDM/FSI for the logic)',ata_chapter:f.ata,fsi_table:f.table||undefined,cite:f.cite,doc_id:f.doc,pdf_page:f.page}))}};
+    }
+    if(name==='lookup_cmc'){
+      const r=searchCmc(input.query||'',12);r.forEach(x=>(x.refs||[]).forEach(f=>registerSource({cite:f[2],doc_id:f[0],pdf_page:f[1]})));
+      return {summary:`${r.length} match${r.length===1?'':'es'}`,data:{matches:r.map(x=>x.kind==='code'?{fault_code:x.code,ata:x.ata,fault_number:x.num,reporting_unit:x.lru,named_in:(x.refs||[]).map(f=>({cite:f[2],doc_id:f[0],pdf_page:f[1]})),other_messages_from_same_unit:x.sameLru}:{maintenance_message:x.msg,reporting_unit:x.lru,ata:x.ata||undefined,named_in:x.refs.map(f=>({cite:f[2],doc_id:f[0],pdf_page:f[1]}))}),note:r.length?undefined:'Not in the index. Decode by structure (CCSSNNN + reporting unit) or search the manuals for the message words.'}};
     }
     if(name==='search_manuals'){
       const max=Math.min(15,Math.max(1,input.max_results|0||8));
@@ -666,7 +717,7 @@ Aircraft: ${m.aircraft||'Gulfstream G600'}. The G600 shares the GVII platform wi
 Known gaps: ${(m.gaps||[]).join(' | ')}
 
 # How to work
-1. For every CAS message given, call lookup_cas to get its color and trigger logic. There is no G600 FIM: build fault isolation from the system logic (SDM + FSI), the monitoring source (which RDC/DCN node, controller, MAU or sensor sets the message), and the iWDM wiring.
+1. For every CAS message given, call lookup_cas to get its color and trigger logic. For every CMC maintenance message or fault code given, call lookup_cmc: a fault code is CCSSNNN + reporting unit (2480023SPL1 = ATA 24-80, fault 023, from SPL1), and a message name starts with the reporting unit (FCC1-IRU 1 NO DATA = FCC 1 reports no data from IRU 1); read the AMM / FSI pages that name it. There is no G600 FIM: build fault isolation from the system logic (SDM + FSI), the monitoring source (which RDC/DCN node, controller, MAU or sensor sets the message), and the iWDM wiring.
 2. Understand the system before judging: read the SDM chapter (and FSI chapter) for how the message is generated: sensors, thresholds, controllers, time delays, inhibits, BIT, data paths (DCN/RDCs, ARINC 429, MAU/IOGM). Search for the exact CAS wording and the logic.
 3. Use the reported conditions as evidence. Phase of flight, altitude, temperatures, pressures, ΔP, side, intermittency, recent maintenance and what has already been checked must actively raise or lower each hypothesis. Example: a fault only at high altitude/cold soak points toward pressure- or temperature-sensitive components and connectors, not a hard LRU failure; a fault that follows a swap points toward what moved.
 4. Build a differential: list candidate causes (sensor, wiring/connector, data source such as an RDC, controller/LRU, power: SSPC/CB, mechanical) and for each say what evidence supports or contradicts it. Rank them.
@@ -818,7 +869,7 @@ function md(src){
   }
   closeLists();return html;
 }
-const TOOL_LABEL={lookup_cas:i=>`CAS: “${i.query||''}”`,lookup_fault:i=>`CAS: “${i.query||''}”`,search_manuals:i=>`Search ${(i.manuals||[]).join('/')||'all'}${i.ata_chapters?' ch '+i.ata_chapters.join(','):''}: “${i.query||''}”`,read_pages:i=>`Read doc ${i.doc_id} p${i.pdf_page}${i.count>1?'+'+(i.count-1):''}`,list_documents:i=>`List docs ${[i.manual,i.ata_prefix,i.title_contains].filter(Boolean).join(' · ')}`,find_component:i=>`Component: ${i.query||''}${i.ata_prefix?' ('+i.ata_prefix+')':''}`,get_connector_pins:i=>`Pin-out ${i.connector||''}${i.filter?' · '+i.filter:''}`,trace_wire:i=>`Trace wire ${i.wire||''}`};
+const TOOL_LABEL={lookup_cas:i=>`CAS: “${i.query||''}”`,lookup_cmc:i=>`CMC: “${i.query||''}”`,lookup_fault:i=>`CAS: “${i.query||''}”`,search_manuals:i=>`Search ${(i.manuals||[]).join('/')||'all'}${i.ata_chapters?' ch '+i.ata_chapters.join(','):''}: “${i.query||''}”`,read_pages:i=>`Read doc ${i.doc_id} p${i.pdf_page}${i.count>1?'+'+(i.count-1):''}`,list_documents:i=>`List docs ${[i.manual,i.ata_prefix,i.title_contains].filter(Boolean).join(' · ')}`,find_component:i=>`Component: ${i.query||''}${i.ata_prefix?' ('+i.ata_prefix+')':''}`,get_connector_pins:i=>`Pin-out ${i.connector||''}${i.filter?' · '+i.filter:''}`,trace_wire:i=>`Trace wire ${i.wire||''}`};
 function toolLabel(b){const f=TOOL_LABEL[b.name];return f?f(b.input||{}):b.name}
 function toolEl(b,result){
   const el=document.createElement('div');el.className='tool'+(result?(result.error?' err':''):' run');el.dataset.id=b.id;
@@ -1257,6 +1308,13 @@ $('#faultInput').addEventListener('keydown',e=>{
   else if(e.key==='Enter'){e.preventDefault();pickFault(acIdx>=0?acItems[acIdx]:(acItems[0]||null))}
 });
 $('#faultInput').addEventListener('blur',()=>setTimeout(()=>$('#faultList').classList.add('hidden'),150));
+$('#cmcInput').addEventListener('input',()=>{cmcIdx=-1;renderCmcAc()});
+$('#cmcInput').addEventListener('keydown',e=>{
+  if(e.key==='ArrowDown'){cmcIdx=Math.min(cmcIdx+1,cmcItems.length-1);renderCmcAc();e.preventDefault()}
+  else if(e.key==='ArrowUp'){cmcIdx=Math.max(cmcIdx-1,-1);renderCmcAc();e.preventDefault()}
+  else if(e.key==='Enter'){e.preventDefault();pickCmc(cmcIdx>=0?cmcItems[cmcIdx]:(cmcItems[0]||null))}
+});
+$('#cmcInput').addEventListener('blur',()=>setTimeout(()=>$('#cmcList').classList.add('hidden'),150));
 
 const READING_PRESETS=[['Duct / mix temp','°C'],['Bleed press','psi'],['Bleed temp','°C'],['Pack outlet temp','°C'],['Hyd press','psi'],['Oil press','psi'],['Oil temp','°C'],['Fuel temp','°C'],['N1','%'],['N2','%'],['TGT','°C'],['DC bus','V'],['AC bus','V'],['Gen load','A'],['Brake temp','°C'],['Tire press','psi']];
 function addReading(p='',v='',u=''){
@@ -1272,13 +1330,14 @@ let curTab='describe';
 $$('.tab').forEach(t=>t.onclick=()=>{
   curTab=t.dataset.tab;$$('.tab').forEach(x=>x.classList.toggle('on',x===t));
   $('#caseForm').classList.toggle('hidden',curTab==='search'||curTab==='wiring');$('#searchPane').classList.toggle('hidden',curTab!=='search');$('#wiringPane').classList.toggle('hidden',curTab!=='wiring');
-  $('#faultCard').style.order='';
-  if(curTab==='describe'){$('#describeCard').after($('#faultCard'));$('#descText').focus()}else if(curTab==='fault'){$('#faultCard').after($('#describeCard'))}
+  const top={describe:'#describeCard',fault:'#faultCard',cmc:'#cmcCard'}[curTab];
+  if(top){const order=[top,...['#describeCard','#faultCard','#cmcCard'].filter(x=>x!==top)];const cf=$('#caseForm');for(const id of order.slice().reverse())cf.prepend($(id))}
+  if(curTab==='describe')$('#descText').focus();if(curTab==='cmc')$('#cmcInput').focus();
   if(curTab==='search')$('#sQuery').focus();if(curTab==='wiring')$('#wQuery').focus();
 });
 const val=id=>$(id).value.trim();
 function collectForm(){
-  return {faults:selFaults,desc:val('#descText'),phase:val('#fPhase'),behavior:val('#fBehavior'),alt:val('#fAlt'),spd:val('#fSpd'),oat:val('#fOat'),cabAlt:val('#fCabAlt'),dp:val('#fDp'),rate:val('#fRate'),other:val('#fOther'),sn:val('#fSn'),reg:val('#fReg').toUpperCase(),tt:val('#fTT'),cyc:val('#fCyc'),engHrs:val('#fEngHrs'),engCyc:val('#fEngCyc'),apuHrs:val('#fApuHrs'),side:val('#fSide'),recent:val('#fRecent'),done:val('#fDone'),
+  return {faults:selFaults,cmc:selCmc.slice(),desc:val('#descText'),phase:val('#fPhase'),behavior:val('#fBehavior'),alt:val('#fAlt'),spd:val('#fSpd'),oat:val('#fOat'),cabAlt:val('#fCabAlt'),dp:val('#fDp'),rate:val('#fRate'),other:val('#fOther'),sn:val('#fSn'),reg:val('#fReg').toUpperCase(),tt:val('#fTT'),cyc:val('#fCyc'),engHrs:val('#fEngHrs'),engCyc:val('#fEngCyc'),apuHrs:val('#fApuHrs'),side:val('#fSide'),recent:val('#fRecent'),done:val('#fDone'),
     readings:$$('#readings .rrow').map(r=>[...r.querySelectorAll('input')].map(i=>i.value.trim())).filter(r=>r[0]||r[1])};
 }
 function caseText(f){
@@ -1286,6 +1345,7 @@ function caseText(f){
   if(f.reg||f.sn)L.push(`Aircraft: G600${f.reg?' '+f.reg:''}${f.sn?' s/n '+f.sn:''}`);
   {const tl=timesLine(f);if(tl)L.push(`Times: ${tl}`)}
   if(f.faults.length){L.push('CAS messages:');f.faults.forEach(x=>L.push(`  • ${x.msg}${x.color?` (${x.color})`:''}${x.ata?` — ATA ${x.ata}`:''}${x.cause?` — FSI logic: ${x.cause} [${x.cite}]`:''}${x.custom?' (typed; not matched in CAS tables)':''}`))}
+  if(f.cmc&&f.cmc.length){L.push('CMC maintenance messages / fault codes:');f.cmc.forEach(x=>L.push(`  • ${x.custom?(x.msg+' (typed; not in the CMC index)'):cmcLine(x)}${x.refs&&x.refs.length?` — named in ${x.refs.slice(0,3).map(r=>'['+r[2]+']').join(' ')}`:''}`))}
   if(f.desc)L.push(`Description: ${f.desc}`);
   const c=[f.phase&&`Phase: ${f.phase}`,f.behavior&&`Behavior: ${f.behavior}`,f.side&&`Side: ${f.side}`,f.alt&&`Altitude: ${f.alt} ft`,f.spd&&`Speed: ${f.spd}`,f.oat&&`SAT/OAT: ${f.oat} °C`,f.cabAlt&&`Cabin alt: ${f.cabAlt} ft`,f.dp&&`Cabin ΔP: ${f.dp} psi`,f.rate&&`Cabin rate: ${f.rate} fpm`].filter(Boolean);
   if(c.length)L.push('Conditions: '+c.join(' | '));
@@ -1297,18 +1357,19 @@ function caseText(f){
 }
 $('#btnStart').onclick=async()=>{
   const f=collectForm();
-  if(!f.faults.length&&!f.desc){$('#faultInput').focus();flash($('#btnStart'),'ENTER A MESSAGE OR DESCRIPTION');return}
+  if(!f.faults.length&&!f.cmc.length&&!f.desc){$('#descText').focus();flash($('#btnStart'),'ENTER A MESSAGE OR DESCRIPTION');return}
   if(!DATA.ready){openSettings('Connect the manual data source first.');return}
   if(!cfg.anthropicKey){openSettings('Add your Anthropic API key to start troubleshooting.');return}
   if(f.reg||f.sn)store.set(LAST_AC_KEY,{reg:f.reg,sn:f.sn});
   const text=caseText(f);
   f.faults.forEach(x=>{if(x.cite&&x.doc!=null)registerSource({cite:x.cite,doc_id:x.doc,pdf_page:x.page})});
-  const title=(f.faults[0]?.msg||f.desc).slice(0,48);
+  f.cmc.forEach(x=>(x.refs||[]).forEach(r=>registerSource({cite:r[2],doc_id:r[0],pdf_page:r[1]})));
+  const title=(f.faults[0]?.msg||(f.cmc[0]&&(f.cmc[0].code||f.cmc[0].msg))||f.desc).slice(0,48);
   CASE={id:Date.now().toString(36),title,created:Date.now(),updated:Date.now(),form:f,usage:{in:0,out:0},msgs:[{role:'user',content:[{type:'text',text}]}]};
   showChat();renderCase();saveCase();runAgent();
 };
 function flash(btn,msg){const o=btn.textContent;btn.textContent=msg;btn.disabled=true;setTimeout(()=>{btn.textContent=o;btn.disabled=false},1600)}
-function resetForm(){selFaults=[];renderFaultChips();['#descText','#fAlt','#fSpd','#fOat','#fCabAlt','#fDp','#fRate','#fOther','#fSn','#fReg','#fTT','#fCyc','#fEngHrs','#fEngCyc','#fApuHrs','#fRecent','#fDone','#faultInput'].forEach(i=>$(i).value='');prefillAircraft();$('#timesDetails').open=false;['#fPhase','#fBehavior','#fSide'].forEach(i=>$(i).value='');$('#readings').innerHTML='';$('#moreDetails').open=false}
+function resetForm(){selFaults=[];renderFaultChips();selCmc=[];renderCmcChips();$('#cmcInput').value='';['#descText','#fAlt','#fSpd','#fOat','#fCabAlt','#fDp','#fRate','#fOther','#fSn','#fReg','#fTT','#fCyc','#fEngHrs','#fEngCyc','#fApuHrs','#fRecent','#fDone','#faultInput'].forEach(i=>$(i).value='');prefillAircraft();$('#timesDetails').open=false;['#fPhase','#fBehavior','#fSide'].forEach(i=>$(i).value='');$('#readings').innerHTML='';$('#moreDetails').open=false}
 
 /* ═════════════════ CHAT ═════════════════ */
 function showChat(){$('#intakeView').classList.add('hidden');$('#chatView').classList.remove('hidden')}
