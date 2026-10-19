@@ -171,7 +171,14 @@ mark{background:var(--mark-bg);color:var(--amber-glow);border-radius:2px}
 .pwrap{overflow-x:hidden;max-height:60dvh;overflow-y:auto;border:1px solid var(--border);border-radius:6px}
 .dlink{display:inline-block;font-family:var(--mono);font-size:12px;color:var(--cyan);border:1px solid var(--cyan-dim);border-radius:3px;padding:1px 6px;margin:3px 4px 0 0;cursor:pointer}
 .svgbox{background:#fff;border-radius:6px;overflow:auto;max-height:70dvh;border:1px solid var(--border);touch-action:pan-x pan-y}
-.svgbox img{display:block;width:100%;max-width:none}
+.svgbox img,.svgbox svg{display:block;width:100%;height:auto;max-width:none}
+.svgbox .hlbox{fill:#ffe600;fill-opacity:.45;stroke:#ff1f6b;stroke-width:90;stroke-opacity:.95;animation:hlpulse 1.4s ease-in-out 3}
+.svgbox g.hl path,.svgbox g.hl rect:not(.hlbox),.svgbox g.hl circle{stroke:#ff1f6b!important;stroke-opacity:1!important;stroke-width:70px!important}
+.svgbox g.hl text{fill:#d0004a!important;font-weight:700}
+.svgbox text.hlwire{fill:#d0004a!important;font-weight:700}
+@keyframes hlpulse{50%{fill-opacity:.12;stroke-opacity:.35}}
+.hlnote{font-size:12.5px;margin:-2px 0 8px;color:var(--text-dim)} .hlnote b{color:#ff1f6b}
+.ptable td.wirecell{color:var(--cyan);cursor:pointer;text-decoration:underline dotted}
 .zbar{display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;align-items:center}
 </style>
 </head>
@@ -613,7 +620,7 @@ async function runTool(name,input){
     }
     if(name==='find_component'){
       const r=(await findComponents(input.query,{ata_prefix:input.ata_prefix})).map(compObj);
-      r.forEach(c=>c.diagrams.forEach(registerSource));
+      r.forEach(c=>c.diagrams.forEach(d=>registerSource({...d,hl:[{t:c.designator,kind:'comp'}]})));
       return {summary:`${r.length} component${r.length===1?'':'s'}`,data:{matches:r}};
     }
     if(name==='get_connector_pins'){
@@ -630,7 +637,7 @@ async function runTool(name,input){
 }
 const SOURCES=new Map();
 function normCite(c){return String(c).toUpperCase().replace(/[^A-Z0-9]+/g,' ').trim()}
-function registerSource(x){if(x&&x.cite&&x.doc_id!=null){SOURCES.set(normCite(x.cite),{doc_id:x.doc_id,pdf_page:x.pdf_page});}}
+function registerSource(x){if(x&&x.cite&&x.doc_id!=null){SOURCES.set(normCite(x.cite),{doc_id:x.doc_id,pdf_page:x.pdf_page,hl:x.hl});}}
 
 /* ═════════════════ SYSTEM PROMPT ═════════════════ */
 function systemPrompt(){
@@ -866,7 +873,7 @@ function renderCase(){
   requestAnimationFrame(()=>{stickBottom=true;autoScroll()});
 }
 function summarize(d){if(!d)return'';if(d.error)return'error';if(d.matches)return`${d.matches.length} matches`;if(d.results)return`${d.results.length} hits`;if(d.tables)return d.tables.map(t=>t.connector).join(', ');if(d.segments)return`${d.segments.length} segments`;if(d.pages)return d.pages.map(p=>p.cite).join(', ').slice(0,90);if(d.documents)return`${d.total} docs`;return''}
-function registerFromResult(d){if(!d)return;(d.results||[]).forEach(registerSource);(d.pages||[]).forEach(p=>registerSource({cite:p.cite,doc_id:d.doc_id,pdf_page:p.pdf_page}));(d.matches||[]).forEach(x=>{registerSource(x);(x.diagrams||[]).forEach(registerSource)})}
+function registerFromResult(d){if(!d)return;(d.results||[]).forEach(registerSource);(d.pages||[]).forEach(p=>registerSource({cite:p.cite,doc_id:d.doc_id,pdf_page:p.pdf_page}));(d.matches||[]).forEach(x=>{registerSource(x);(x.diagrams||[]).forEach(dg=>registerSource({...dg,hl:x.designator?[{t:x.designator,kind:'comp'}]:undefined}))})}
 
 /* ═════════════════ CITATION / PAGE VIEWER ═════════════════ */
 async function resolveCite(c){
@@ -886,13 +893,50 @@ async function resolveCite(c){
   if(d.m==='iWDM'&&sm){const i=(d.dia||[]).indexOf(sm[1]);return{doc_id:d.id,pdf_page:i>=0?i+1:1}}
   return{doc_id:d.id,pdf_page:Math.min(d.pages,Math.max(1,+(pm?pm[1]:1)))};
 }
-const svgUrls=new Map();
-async function svgUrl(path){
-  if(svgUrls.has(path))return svgUrls.get(path);
-  const txt=await fetchText(`wiring/svg/${path.replace(/\//g,'_')}.gz`);
-  const u=URL.createObjectURL(new Blob([txt],{type:'image/svg+xml'}));svgUrls.set(path,u);return u;
+const svgTexts=new Map();
+async function svgText(path){
+  if(!svgTexts.has(path))svgTexts.set(path,fetchText(`wiring/svg/${path.replace(/\//g,'_')}.gz`).catch(e=>{svgTexts.delete(path);throw e}));
+  return svgTexts.get(path);
 }
-async function openPage(docId,page){
+function svgNode(txt){
+  const doc=new DOMParser().parseFromString(txt,'image/svg+xml');const svg=doc.documentElement;
+  if(!svg||svg.nodeName!=='svg')throw new Error('Schematic could not be read.');
+  svg.querySelectorAll('script,foreignObject,iframe,image,use,a').forEach(n=>n.remove());
+  svg.querySelectorAll('*').forEach(n=>{for(const a of [...n.attributes])if(/^on/i.test(a.name)||/href$/i.test(a.name))n.removeAttribute(a.name)});
+  svg.removeAttribute('width');svg.removeAttribute('height');svg.setAttribute('preserveAspectRatio','xMidYMid meet');
+  return document.importNode(svg,true);
+}
+const wireBase=w=>{const m=String(w||'').toUpperCase().match(/^\d*[A-Z]+\d+/);return m?m[0]:''};
+function svgHighlight(svg,terms){
+  // terms: [{t:'006A5P1',kind:'comp'|'wire'}]; returns matched labels
+  const found=[],texts=[...svg.querySelectorAll('text')];
+  for(const term of terms){
+    const T=term.t.toUpperCase();if(!T)continue;
+    const hits=texts.filter(x=>{const v=x.textContent.trim().toUpperCase();
+      if(term.kind==='wire'){const b=wireBase(T);return b&&v.startsWith(b)&&!/\d/.test(v.charAt(b.length)||'')}
+      return v===T});
+    for(const tx of hits){
+      const g=tx.closest('g')||tx;let bb,tb;
+      try{bb=g.getBBox();tb=tx.getBBox()}catch(e){continue}
+      const r=document.createElementNS('http://www.w3.org/2000/svg','rect');r.setAttribute('class','hlbox');
+      if(term.kind==='wire'){
+        // band along this wire only: from its label across the run of its own line (not the whole bundle group)
+        tx.classList.add('hlwire');
+        const lines=[...g.querySelectorAll('path,rect')].map(p=>{try{return p.getBBox()}catch(e){return null}}).filter(b=>b&&b.height<tb.height*1.2&&b.width>tb.width*.5&&Math.abs((b.y+b.height/2)-(tb.y+tb.height))<tb.height*1.6);
+        let x0=tb.x,x1=tb.x+tb.width;for(const l of lines){x0=Math.min(x0,l.x);x1=Math.max(x1,l.x+l.width)}
+        const h=tb.height*1.9,pad=tb.height*.35;
+        r.setAttribute('x',x0-pad);r.setAttribute('y',tb.y-pad);r.setAttribute('width',x1-x0+2*pad);r.setAttribute('height',h);r.setAttribute('rx',pad);
+      } else {
+        g.classList.add('hl');
+        const pad=Math.max(250,Math.max(bb.width,bb.height)*.06);
+        r.setAttribute('x',bb.x-pad);r.setAttribute('y',bb.y-pad);r.setAttribute('width',bb.width+2*pad);r.setAttribute('height',bb.height+2*pad);r.setAttribute('rx',pad/2);
+      }
+      g.parentNode.insertBefore(r,g);found.push({el:r,label:term.t});
+    }
+  }
+  return found;
+}
+async function openPage(docId,page,opt={}){
   const pg=await getPage(docId,page);if(!pg){showModal('Page','<div class="errbox">Page not found.</div>');return}
   const d=pg.doc;
   const nav=`<div class="zbar"><button class="btn2 small" id="pgPrev" ${page<=1?'disabled':''}>◂ Prev</button><button class="btn2 small" id="pgNext" ${page>=d.pages?'disabled':''}>Next ▸</button><button class="btn2 small" id="pgCopy">Copy text</button>`;
@@ -900,25 +944,43 @@ async function openPage(docId,page){
     const svg=(d.svgs||[])[page-1];
     showModal(pg.cite,`<div class="kv"><b>iWDM — ${esc(d.title)}</b><br>System ${esc(d.c.slice(5))} · ATA ${esc(d.ata||'—')} · sheet ${esc((d.dia||[])[page-1]||page)} (${page} of ${d.pages})<br><span style="font-family:var(--mono);font-size:12px">${esc(d.path)}</span></div>
      ${nav}<button class="btn2 small" id="zOut">−</button><button class="btn2 small" id="zIn">＋</button><button class="btn2 small" id="zFit">Fit</button></div>
+     <div class="hlnote hidden" id="hlNote"></div>
      <div class="svgbox" id="svgBox"><div class="hint" style="padding:12px;color:#333">Loading schematic…</div></div>
      <details class="more" style="margin-top:10px"><summary>▸ Sheet text &amp; designators</summary><div class="pagetext">${esc(pg.text)}</div></details>`);
-    let z=1;const box=$('#svgBox');
-    const setZ=v=>{z=Math.min(8,Math.max(1,v));const im=box.querySelector('img');if(im)im.style.width=(z*100)+'%'};
+    let z=1,hits=[],hi=0;const box=$('#svgBox');
+    const focusHit=k=>{const h=hits[k];if(!h)return;const br=box.getBoundingClientRect(),er=h.el.getBoundingClientRect();
+      box.scrollTo({left:box.scrollLeft+er.left-br.left-(br.width-er.width)/2,top:box.scrollTop+er.top-br.top-(br.height-er.height)/2,behavior:'smooth'})};
+    const setZ=(v,keep)=>{const cx=(box.scrollLeft+box.clientWidth/2)/Math.max(1,box.scrollWidth),cy=(box.scrollTop+box.clientHeight/2)/Math.max(1,box.scrollHeight);
+      z=Math.min(8,Math.max(1,v));const im=box.querySelector('svg,img');if(im)im.style.width=(z*100)+'%';
+      if(keep!==false){box.scrollLeft=cx*box.scrollWidth-box.clientWidth/2;box.scrollTop=cy*box.scrollHeight-box.clientHeight/2}};
     $('#zIn').onclick=()=>setZ(z*1.6);$('#zOut').onclick=()=>setZ(z/1.6);$('#zFit').onclick=()=>setZ(1);
-    if(svg)svgUrl(svg).then(u=>{if(document.body.contains(box)){box.innerHTML=`<img alt="Wiring diagram" src="${u}">`;box.querySelector('img').ondblclick=()=>setZ(z*1.6)}}).catch(e=>{box.innerHTML=`<div class="errbox">${esc(e.message)}</div>`});
+    if(svg)svgText(svg).then(txt=>{if(!document.body.contains(box))return;
+      const node=svgNode(txt);box.innerHTML='';box.appendChild(node);node.ondblclick=()=>setZ(z*1.6);
+      const terms=opt.hl||[];
+      if(terms.length){
+        hits=svgHighlight(node,terms);const note=$('#hlNote');note.classList.remove('hidden');
+        const want=[...new Set(terms.map(t=>t.t))].join(', ');
+        if(hits.length){const labels=[...new Set(hits.map(h=>h.label))];
+          note.innerHTML=`Highlighted: <b>${esc(labels.join(', '))}</b>${hits.length>1?` · ${hits.length} places <button class="btn2 small" id="hlNext" style="margin-left:6px">Next ▸</button>`:''}`;
+          hits.sort((x,y)=>(terms.findIndex(t=>t.t===y.label&&t.kind==='wire')>=0)-(terms.findIndex(t=>t.t===x.label&&t.kind==='wire')>=0));
+          setZ(3.2,false);requestAnimationFrame(()=>{const mb=$('#modalBody');mb.scrollTop+=box.getBoundingClientRect().top-mb.getBoundingClientRect().top-8;focusHit(0)});
+          const nb=$('#hlNext');if(nb)nb.onclick=()=>{hi=(hi+1)%hits.length;focusHit(hi)};
+        } else note.innerHTML=`<b>${esc(want)}</b> isn't labeled on this sheet. Try Prev / Next or another sheet.`;
+      }
+    }).catch(e=>{box.innerHTML=`<div class="errbox">${esc(e.message)}</div>`});
   } else {
     const local=`C:\\Gulfstream PDFs\\G600\\${d.path.replace(/\//g,'\\')}`;
     showModal(pg.cite,`<div class="kv"><b>${esc(d.m)} — ${esc(d.title)}</b><br>${esc(d.type||'')} · ATA ${esc(d.ata||'—')} · page ${page} of ${d.pages}${d.rev?' · '+esc(d.rev):''}<br>PDF: <span style="font-family:var(--mono);font-size:12px">${esc(local)}</span> (page ${page})</div>
      ${nav}</div><div class="pagetext">${esc(pg.text)}</div>`);
   }
-  $('#pgPrev').onclick=()=>openPage(docId,page-1);$('#pgNext').onclick=()=>openPage(docId,page+1);
+  $('#pgPrev').onclick=()=>openPage(docId,page-1,opt);$('#pgNext').onclick=()=>openPage(docId,page+1,opt);
   $('#pgCopy').onclick=()=>{navigator.clipboard?.writeText(`${pg.cite}\n${pg.text}`);$('#pgCopy').textContent='Copied'};
 }
 document.addEventListener('click',async e=>{
   const c=e.target.closest('.cite');if(!c)return;
   if(!DATA.ready){showModal('Reference','<div class="errbox">Manual data not loaded.</div>');return}
   c.style.opacity=.5;const r=await resolveCite(c.dataset.cite);c.style.opacity='';
-  if(r&&r.pins)showPins(r.pins);else if(r&&r.wire)showWire(r.wire);else if(r)openPage(r.doc_id,r.pdf_page);else showModal(c.dataset.cite,'<div class="kv">This reference could not be matched to an indexed page. Try the Search Manuals tab.</div>');
+  if(r&&r.pins)showPins(r.pins);else if(r&&r.wire)showWire(r.wire);else if(r)openPage(r.doc_id,r.pdf_page,{hl:r.hl||[]});else showModal(c.dataset.cite,'<div class="kv">This reference could not be matched to an indexed page. Try the Search Manuals tab.</div>');
 });
 
 /* ═════════════════ MODAL ═════════════════ */
@@ -1277,11 +1339,19 @@ async function doSearch(){
 $('#sGo').onclick=doSearch;$('#sQuery').addEventListener('keydown',e=>{if(e.key==='Enter')doSearch()});
 
 /* ═════════════════ WIRING LOOKUP (no AI) ═════════════════ */
-function diagLinks(ds){return (ds||[]).map(x=>x.doc_id!=null?`<span class="dlink" data-d="${x.doc_id}" data-p="${x.pdf_page}">${esc(x.system)} sh ${esc(x.sheet)}</span>`:`<span class="dlink" style="opacity:.5">${esc(x.system)} ${esc(x.sheet)}</span>`).join('')}
-function bindDiag(root){root.querySelectorAll('.dlink[data-d]').forEach(el=>el.onclick=e=>{e.stopPropagation();openPage(+el.dataset.d,+el.dataset.p)});root.querySelectorAll('[data-pins]').forEach(el=>el.onclick=e=>{e.stopPropagation();showPins(el.dataset.pins)})}
+function diagLinks(ds,hl){const h=hl?` data-hl="${esc(JSON.stringify(hl))}"`:'';return (ds||[]).map(x=>x.doc_id!=null?`<span class="dlink" data-d="${x.doc_id}" data-p="${x.pdf_page}"${h}>${esc(x.system)} sh ${esc(x.sheet)}</span>`:`<span class="dlink" style="opacity:.5">${esc(x.system)} ${esc(x.sheet)}</span>`).join('')}
+async function openWireOnSheet(conn,wire){
+  // open the first schematic sheet of a connector with the connector + wire highlighted
+  const c=(await findComponents(conn,{max:5})).find(x=>x[0].toUpperCase()===String(conn).toUpperCase());
+  const d=c?compObj(c).diagrams.find(x=>x.doc_id!=null):null;
+  if(!d){showModal('Schematic',`<div class="kv">No schematic sheet is linked to ${esc(conn)}.</div>`);return}
+  openPage(d.doc_id,d.pdf_page,{hl:[{t:conn,kind:'comp'},...(wire?[{t:wire,kind:'wire'}]:[])]});
+}
+function bindDiag(root){root.querySelectorAll('.dlink[data-d]').forEach(el=>el.onclick=e=>{e.stopPropagation();let hl=[];try{hl=JSON.parse(el.dataset.hl||'[]')}catch(_){}openPage(+el.dataset.d,+el.dataset.p,{hl})});
+  root.querySelectorAll('[data-wire]').forEach(el=>el.onclick=e=>{e.stopPropagation();openWireOnSheet(el.dataset.conn,el.dataset.wire)});root.querySelectorAll('[data-pins]').forEach(el=>el.onclick=e=>{e.stopPropagation();showPins(el.dataset.pins)})}
 function pinsHtml(tables){
   return tables.map(t=>`<div class="kv" style="margin:12px 0 6px"><b>${esc(t.connector)}</b> · harness ${esc(t.harness||'—')} · ${t.rows.length} cavities</div>
-   <div class="pwrap"><table class="ptable"><tr><th>Pin</th><th>Wire</th><th>Signal</th><th>Color</th><th>Far end</th><th>Wire P/N</th></tr>${t.rows.map(r=>`<tr><td>${esc(r[0])}</td><td>${esc(r[2]||'—')}</td><td>${esc(r[1]||'')}</td><td>${esc(r[5]&&r[5]!=='Not Applicable'?r[5]:'')}</td><td class="mate" data-pins="${esc(r[8]||'')}">${r[8]?esc(r[8]+'-'+r[7]):''}</td><td>${esc(r[3]||'')}</td></tr>`).join('')}</table></div>`).join('');
+   <div class="pwrap"><table class="ptable"><tr><th>Pin</th><th>Wire</th><th>Signal</th><th>Color</th><th>Far end</th><th>Wire P/N</th></tr>${t.rows.map(r=>`<tr><td>${esc(r[0])}</td>${r[2]?`<td class="wirecell" data-conn="${esc(t.connector)}" data-wire="${esc(r[2])}">${esc(r[2])}</td>`:'<td>—</td>'}<td>${esc(r[1]||'')}</td><td>${esc(r[5]&&r[5]!=='Not Applicable'?r[5]:'')}</td><td class="mate" data-pins="${esc(r[8]||'')}">${r[8]?esc(r[8]+'-'+r[7]):''}</td><td>${esc(r[3]||'')}</td></tr>`).join('')}</table></div>`).join('');
 }
 async function showPins(name){
   if(!name)return;
@@ -1289,8 +1359,8 @@ async function showPins(name){
   try{
     const [t,c]=await Promise.all([connectorPins(name),findComponents(name,{max:3})]);
     const comp=c.find(x=>x[0].toUpperCase()===name.toUpperCase());
-    $('#modalBody').innerHTML=(comp?`<div class="kv"><b>${esc(comp[0])}</b> · ${esc(CTYPE[comp[1]]||'')} · ${esc(comp[4]||'')}<br>P/N ${esc(comp[2]||'—')} · ATA ${esc(comp[5]||'—')}<br>${diagLinks(compObj(comp).diagrams)}</div>`:'')+
-      (t.length?pinsHtml(t)+'<div class="hint">Tap a far-end connector to open its pin-out. Gauge is in the wire number (e.g. …A20-4 = 20 AWG).</div>':'<div class="errbox">No pin table for this designator. Devices (e.g. 006A5) connect through connectors such as 006A5P1 / J1.</div>');
+    $('#modalBody').innerHTML=(comp?`<div class="kv"><b>${esc(comp[0])}</b> · ${esc(CTYPE[comp[1]]||'')} · ${esc(comp[4]||'')}<br>P/N ${esc(comp[2]||'—')} · ATA ${esc(comp[5]||'—')}<br>${diagLinks(compObj(comp).diagrams,[{t:comp[0],kind:'comp'}])}</div>`:'')+
+      (t.length?pinsHtml(t)+'<div class="hint">Tap a wire to see it highlighted on the schematic, or a far-end connector to open its pin-out. Gauge is in the wire number (e.g. …A20-4 = 20 AWG).</div>':'<div class="errbox">No pin table for this designator. Devices (e.g. 006A5) connect through connectors such as 006A5P1 / J1.</div>');
     bindDiag($('#modalBody'));
   }catch(e){$('#modalBody').innerHTML=`<div class="errbox">${esc(e.message)}</div>`}
 }
@@ -1298,7 +1368,7 @@ async function showWire(w){
   showModal(`iWDM wire ${w}`,'<div class="hint">Tracing…</div>');
   try{
     const r=await traceWire(w);
-    $('#modalBody').innerHTML=r.length?`<div class="pwrap"><table class="ptable"><tr><th>Wire</th><th>End 1</th><th>End 2</th><th>Color</th></tr>${r.map(x=>`<tr><td>${esc(x.wire)}</td><td class="mate" data-pins="${esc(x.end1.replace(/-[^-]+$/,''))}">${esc(x.end1)}</td><td class="mate" data-pins="${esc(x.end2.replace(/-[^-]+$/,''))}">${esc(x.end2)}</td><td>${esc(x.color||'')}</td></tr>`).join('')}</table></div><div class="hint">Each row is one segment between connector pins. Tap a connector to see its full pin-out.</div>`:'<div class="errbox">Wire not found in the pin tables.</div>';
+    $('#modalBody').innerHTML=r.length?`<div class="pwrap"><table class="ptable"><tr><th>Wire</th><th>End 1</th><th>End 2</th><th>Color</th></tr>${r.map(x=>`<tr><td class="wirecell" data-conn="${esc(x.end1.replace(/-[^-]+$/,''))}" data-wire="${esc(x.wire)}">${esc(x.wire)}</td><td class="mate" data-pins="${esc(x.end1.replace(/-[^-]+$/,''))}">${esc(x.end1)}</td><td class="mate" data-pins="${esc(x.end2.replace(/-[^-]+$/,''))}">${esc(x.end2)}</td><td>${esc(x.color||'')}</td></tr>`).join('')}</table></div><div class="hint">Each row is one segment between connector pins. Tap a wire to see it highlighted on the schematic, or a connector to see its full pin-out.</div>`:'<div class="errbox">Wire not found in the pin tables.</div>';
     bindDiag($('#modalBody'));
   }catch(e){$('#modalBody').innerHTML=`<div class="errbox">${esc(e.message)}</div>`}
 }
@@ -1309,7 +1379,7 @@ async function doWiring(){
   $('#wResults').innerHTML='<div class="hint">Searching…</div>';
   try{
     const r=await findComponents(q,{max:40});
-    $('#wResults').innerHTML=r.length?r.map(c=>`<div class="res"${c[6]?` data-pins="${esc(c[0])}"`:''}><div class="h"><span class="mt">${esc(c[1]==='D'?'LRU':c[1]==='C'?'CONN':c[1]==='I'?'INLINE':c[1]==='S'?'SPLICE':'GND')}</span><span class="ttl">${esc(c[0])}</span><span class="lb">${esc(c[4]||'')}</span></div><div class="lb">P/N ${esc(c[2]||'—')}${c[3]?' · harness '+esc(c[3]):''} · ATA ${esc(c[5]||'—')}${c[6]?' · '+c[6]+' pins — tap for pin-out':''}</div><div>${diagLinks(compObj(c).diagrams)}</div></div>`).join(''):'<div class="hint">No matching components.</div>';
+    $('#wResults').innerHTML=r.length?r.map(c=>`<div class="res"${c[6]?` data-pins="${esc(c[0])}"`:''}><div class="h"><span class="mt">${esc(c[1]==='D'?'LRU':c[1]==='C'?'CONN':c[1]==='I'?'INLINE':c[1]==='S'?'SPLICE':'GND')}</span><span class="ttl">${esc(c[0])}</span><span class="lb">${esc(c[4]||'')}</span></div><div class="lb">P/N ${esc(c[2]||'—')}${c[3]?' · harness '+esc(c[3]):''} · ATA ${esc(c[5]||'—')}${c[6]?' · '+c[6]+' pins — tap for pin-out':''}</div><div>${diagLinks(compObj(c).diagrams,[{t:c[0],kind:'comp'}])}</div></div>`).join(''):'<div class="hint">No matching components.</div>';
     bindDiag($('#wResults'));
   }catch(e){$('#wResults').innerHTML=`<div class="errbox">${esc(e.message)}</div>`}
 }
