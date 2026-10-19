@@ -173,6 +173,9 @@ mark{background:var(--mark-bg);color:var(--amber-glow);border-radius:2px}
 .svgbox{background:#fff;border-radius:6px;overflow:auto;max-height:70dvh;border:1px solid var(--border);touch-action:pan-x pan-y;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;position:relative}
 .svgbox svg{transform-origin:0 0;will-change:transform}
 .zhint{font-size:12px;color:var(--text-dim);margin-left:auto}
+.svgbox text.xref{fill:#0057d8!important;text-decoration:underline;cursor:pointer;font-weight:700}
+.svgbox rect.xhit{fill:#0057d8;fill-opacity:.08;stroke:#0057d8;stroke-opacity:.35;stroke-width:30;cursor:pointer}
+.xlist .res{cursor:pointer}
 .svgbox img,.svgbox svg{display:block;width:100%;height:auto;max-width:none}
 .svgbox .hlbox{fill:#ffe600;fill-opacity:.45;stroke:#ff1f6b;stroke-width:90;stroke-opacity:.95;animation:hlpulse 1.4s ease-in-out 3}
 .svgbox g.hl path,.svgbox g.hl rect:not(.hlbox),.svgbox g.hl circle{stroke:#ff1f6b!important;stroke-opacity:1!important;stroke-width:70px!important}
@@ -928,6 +931,10 @@ function svgHighlight(svg,terms){
         let x0=tb.x,x1=tb.x+tb.width;for(const l of lines){x0=Math.min(x0,l.x);x1=Math.max(x1,l.x+l.width)}
         const h=tb.height*1.9,pad=tb.height*.35;
         r.setAttribute('x',x0-pad);r.setAttribute('y',tb.y-pad);r.setAttribute('width',x1-x0+2*pad);r.setAttribute('height',h);r.setAttribute('rx',pad);
+      } else if(bb.height>tb.height*14||bb.width>tb.width*14){
+        // label sits in an oversized group (several symbols): box the label only
+        tx.classList.add('hlwire');const pad=tb.height*.5;
+        r.setAttribute('x',tb.x-pad);r.setAttribute('y',tb.y-pad);r.setAttribute('width',tb.width+2*pad);r.setAttribute('height',tb.height+2*pad);r.setAttribute('rx',pad);
       } else {
         g.classList.add('hl');
         const pad=Math.max(250,Math.max(bb.width,bb.height)*.06);
@@ -938,10 +945,89 @@ function svgHighlight(svg,terms){
   }
   return found;
 }
+/* ── off-page references on wiring sheets: (SEE 73P…J), (SEE … SHT 3.001), (See Sht 3.002), See 24-60-00 ── */
+const NAV=[];
+const RX_DWG=/\bSEE\s+(\d\dP\d{6,8}[A-Z]?)(?:\s+SH(?:EE)?T\.?\s*([\d.]+))?/i, RX_SHT=/\bSEE\s+(?:SHT|SHEET)\.?\s*([\d.]+)/i, RX_ATA=/\b(\d\d-\d\d-\d\d)\b/;
+function resolveDrawing(num){
+  const N=num.toUpperCase(),keys=[...DATA.wsys.keys()];
+  const tryN=n=>keys.find(k=>k===n+'_TP')||keys.find(k=>k.startsWith(n+'_'))||keys.find(k=>k.startsWith(n));
+  return DATA.wsys.get(tryN(N)||(N.startsWith('72P')&&tryN('73P'+N.slice(3)))||tryN(N.replace(/[A-Z]$/,''))||(N.startsWith('72P')&&tryN('73P'+N.slice(3).replace(/[A-Z]$/,'')))||'')||null;
+}
+const xmlEsc=t=>t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+function contextTerms(g,skip){
+  // other labels in the off-page group (circuit / signal names) used to find + highlight the far side
+  return [...g.querySelectorAll('text')].map(t=>t.textContent.trim()).filter(t=>t&&!skip.has(t)&&t.length>=4&&!/^\(?SEE\b|^TO\b|^REFERENCE ONLY$|^\d+$|^[A-Z]?\d*[A-Z]?-\d+$|^\d\d-\d\d-\d\d$/i.test(t)&&!/^(INITIAL ISSUE|NOTES?:?)/i.test(t));
+}
+const RX_DESIG=/^\d{3}[A-Z]{1,3}\d+[A-Z]?\d*[A-Z]?$/, RX_UNIT=/^[A-Z][A-Z/ ]{1,14}\d{1,2}[A-Z]?$/;
+function nearbyTerms(svg,g){
+  // designators / unit names drawn near the off-page symbol (e.g. 033A1, DC MPT 1) — these appear on the far drawing too
+  let gb;try{gb=g.getBBox()}catch(e){return []}
+  const cx=gb.x+gb.width/2,cy=gb.y+gb.height/2,R=Math.max(7000,gb.height*5);
+  return [...svg.querySelectorAll('text')].filter(t=>!g.contains(t)).map(t=>{let b;try{b=t.getBBox()}catch(e){return null}
+      const v=t.textContent.trim();return {v,d:Math.hypot((b.x+b.width/2-cx)*.6,b.y+b.height/2-cy)}})
+    .filter(x=>x&&x.d<R&&(RX_DESIG.test(x.v)||RX_UNIT.test(x.v)))
+    .sort((a,b)=>a.d-b.d).slice(0,6).map(x=>x.v);
+}
+async function gotoDrawing(doc,terms,sheet){
+  let page=1,hl=[];
+  if(sheet){const i=(doc.dia||[]).indexOf(sheet);if(i>=0)page=i+1}
+  if(terms.length){
+    let best=null;
+    for(let i=0;i<(doc.svgs||[]).length;i++){
+      if(sheet&&i!==page-1)continue;
+      let txt;try{txt=await svgText(doc.svgs[i])}catch(e){continue}
+      const m=terms.filter(t=>txt.includes('>'+xmlEsc(t)+'<'));
+      const sc=m.reduce((a,t)=>a+(RX_DESIG.test(t)?3:1),0);
+      if(m.length&&(!best||sc>best.sc))best={i,m,sc};
+    }
+    if(best){page=best.i+1;hl=best.m.map(t=>({t,kind:'comp'}))}
+  }
+  openPage(doc.id,page,{hl,back:true});
+}
+function showAtaDrawings(ata,terms){
+  const pre=/-00-00$/.test(ata)?ata.slice(0,2):/-00$/.test(ata)?ata.slice(0,5):ata;
+  const docs=DATA.catalog.filter(d=>d.m==='iWDM'&&(d.ata||'').startsWith(pre));
+  showModal(`Wiring — ATA ${ata}`,`${NAV.length?'<button class="btn2 small" id="xBack" style="margin-bottom:10px">◂ Back</button>':''}<div class="kv">${docs.length} wiring drawing${docs.length===1?'':'s'} in ATA ${esc(pre)}${terms.length?` · looking for <b>${esc(terms.join(', '))}</b>`:''}</div><div class="xlist">${docs.map(d=>`<div class="res" data-x="${d.id}"><div class="h"><span class="mt">iWDM</span><span class="ttl">${esc(d.c.slice(5))}</span></div><div class="lb">${esc(d.title)} · ATA ${esc(d.ata)} · ${d.pages} sheet${d.pages>1?'s':''}</div></div>`).join('')||'<div class="hint">No wiring drawings indexed for this ATA.</div>'}</div>`);
+  $$('.xlist .res').forEach(el=>el.onclick=()=>gotoDrawing(DATA.catalog[+el.dataset.x],terms));
+  const b=$('#xBack');if(b)b.onclick=()=>{const p=NAV.pop();if(p)openPage(p.docId,p.page,{...p.opt,noPush:true})};
+}
+function linkXrefs(svg,cur){
+  const texts=[...svg.querySelectorAll('text')];let n=0;
+  texts.forEach((tx,i)=>{
+    let t=tx.textContent.trim();
+    // a reference split over two text runs: "(SEE 73" + "P2460033J)"
+    if(/\bSEE\s+\d{1,2}$/i.test(t)&&texts[i+1]&&tx.parentNode===texts[i+1].parentNode)t+=texts[i+1].textContent.trim();
+    const g=tx.closest('g')||svg;let act=null;
+    let m=t.match(RX_DWG);
+    if(m){const doc=resolveDrawing(m[1]);if(doc)act={label:m[1].toUpperCase(),go:terms=>gotoDrawing(doc,terms,m[2])}}
+    else if((m=t.match(RX_SHT))&&cur){const sh=m[1];act={label:'sheet '+sh,go:terms=>gotoDrawing(cur,terms,sh)}}
+    else if(/^\(?SEE\b/i.test(t)){
+      const gtxt=[...g.querySelectorAll('text')].map(x=>x.textContent).join(' ');const a=(t.match(RX_ATA)||gtxt.match(RX_ATA)||[])[1];
+      if(a)act={label:'ATA '+a,go:terms=>showAtaDrawings(a,terms)};
+    }
+    if(!act)return;
+    const skip=new Set([tx.textContent.trim()]);
+    const linkEls=[tx,...[...g.querySelectorAll('text')].filter(x=>x!==tx&&/^TO\b/i.test(x.textContent.trim()))];
+    // "(SEE …)" for an ATA can sit on the line below "SEE POWER SOURCE": link that line too
+    if(act.label.startsWith('ATA'))linkEls.push(...[...g.querySelectorAll('text')].filter(x=>RX_ATA.test(x.textContent)&&x!==tx));
+    for(const el of linkEls){
+      el.classList.add('xref');n++;
+      let bb;try{bb=el.getBBox()}catch(e){bb=null}
+      if(bb){const r=document.createElementNS('http://www.w3.org/2000/svg','rect');const p=bb.height*.45;
+        r.setAttribute('class','xhit');r.setAttribute('x',bb.x-p);r.setAttribute('y',bb.y-p);r.setAttribute('width',bb.width+2*p);r.setAttribute('height',bb.height+2*p);r.setAttribute('rx',p);
+        el.parentNode.insertBefore(r,el);r.addEventListener('click',e=>{e.stopPropagation();el.dispatchEvent(new MouseEvent('click'))})}
+      el.addEventListener('click',e=>{e.stopPropagation();act.go([...new Set([...contextTerms(g,skip),...nearbyTerms(svg,g)])])});
+    }
+  });
+  return n;
+}
 async function openPage(docId,page,opt={}){
+  if(opt.back&&!opt.noPush&&window._curPage)NAV.push(window._curPage);
+  if(!opt.back&&!opt.noPush&&!opt.keep)NAV.length=0;
   const pg=await getPage(docId,page);if(!pg){showModal('Page','<div class="errbox">Page not found.</div>');return}
   const d=pg.doc;
-  const nav=`<div class="zbar"><button class="btn2 small" id="pgPrev" ${page<=1?'disabled':''}>◂ Prev</button><button class="btn2 small" id="pgNext" ${page>=d.pages?'disabled':''}>Next ▸</button><button class="btn2 small" id="pgCopy">Copy text</button>`;
+  window._curPage={docId,page,opt:{hl:opt.hl}};
+  const nav=`<div class="zbar">${NAV.length?'<button class="btn2 small" id="pgBack" title="Back to previous drawing">⟲ Back</button>':''}<button class="btn2 small" id="pgPrev" ${page<=1?'disabled':''}>◂ Prev</button><button class="btn2 small" id="pgNext" ${page>=d.pages?'disabled':''}>Next ▸</button><button class="btn2 small" id="pgCopy">Copy text</button>`;
   if(d.m==='iWDM'){
     const svg=(d.svgs||[])[page-1];
     showModal(pg.cite,`<div class="kv"><b>iWDM — ${esc(d.title)}</b><br>System ${esc(d.c.slice(5))} · ATA ${esc(d.ata||'—')} · sheet ${esc((d.dia||[])[page-1]||page)} (${page} of ${d.pages})<br><span style="font-family:var(--mono);font-size:12px">${esc(d.path)}</span></div>
@@ -958,6 +1044,7 @@ async function openPage(docId,page,opt={}){
     $('#zIn').onclick=()=>setZ(z*1.6);$('#zOut').onclick=()=>setZ(z/1.6);$('#zFit').onclick=()=>setZ(1);
     if(svg)svgText(svg).then(txt=>{if(!document.body.contains(box))return;
       const node=svgNode(txt);box.innerHTML='';box.appendChild(node);
+      const nx=linkXrefs(node,d);if(nx){const zh=document.querySelector('.zhint');if(zh)zh.textContent='Pinch or double-tap to zoom · blue = link'}
       // ── pinch-zoom (two fingers) around the pinch point; one finger scrolls natively
       let g=null,raf=0,last=null;
       const pts=e=>{const a=e.touches[0],b=e.touches[1];return {d:Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY),x:(a.clientX+b.clientX)/2,y:(a.clientY+b.clientY)/2}};
@@ -1014,7 +1101,8 @@ async function openPage(docId,page,opt={}){
     showModal(pg.cite,`<div class="kv"><b>${esc(d.m)} — ${esc(d.title)}</b><br>${esc(d.type||'')} · ATA ${esc(d.ata||'—')} · page ${page} of ${d.pages}${d.rev?' · '+esc(d.rev):''}<br>PDF: <span style="font-family:var(--mono);font-size:12px">${esc(local)}</span> (page ${page})</div>
      ${nav}</div><div class="pagetext">${esc(pg.text)}</div>`);
   }
-  $('#pgPrev').onclick=()=>openPage(docId,page-1,opt);$('#pgNext').onclick=()=>openPage(docId,page+1,opt);
+  $('#pgPrev').onclick=()=>openPage(docId,page-1,{...opt,noPush:true});$('#pgNext').onclick=()=>openPage(docId,page+1,{...opt,noPush:true});
+  const pb=$('#pgBack');if(pb)pb.onclick=()=>{const p=NAV.pop();if(p)openPage(p.docId,p.page,{...p.opt,noPush:true,back:false,keep:true})};
   $('#pgCopy').onclick=()=>{navigator.clipboard?.writeText(`${pg.cite}\n${pg.text}`);$('#pgCopy').textContent='Copied'};
 }
 document.addEventListener('click',async e=>{
