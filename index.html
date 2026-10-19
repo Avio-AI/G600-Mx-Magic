@@ -1520,7 +1520,7 @@ async function buildPdf(meta){
   // ── page 1 summary block
   header();
   font('bold',15,C.ink);doc.text(doc.splitTextToSize(pclean(meta.title),CW),M,y+14);y+=22*Math.min(2,doc.splitTextToSize(pclean(meta.title),CW).length);
-  font('normal',9,C.dim);doc.text(pclean(`${APPNAME}${meta.apt?' · Airport '+meta.apt:''} · Opened ${meta.opened} · Exported ${new Date().toLocaleString()} · ${meta.model}`),M,y+6,{maxWidth:CW});y+=20;
+  font('normal',9,C.dim);doc.text(pclean(`${APPNAME}${meta.apt?' · Airport '+meta.apt:''} · Opened ${meta.opened} · Exported ${new Date().toLocaleString()}`),M,y+6,{maxWidth:CW});y+=20;
   // ── conversation
   let lastRole=null;
   for(const m of CASE.msgs){
