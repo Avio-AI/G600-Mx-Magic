@@ -1534,7 +1534,15 @@ function exportMeta(){
   const f=CASE.form||{};
   return {reg:(f.reg||'').toUpperCase(),sn:f.sn||'',times:timesLine(f),title:CASE.form&&(CASE.form.faults||CASE.form.desc)?shortTitle(CASE.form):(CASE.title||'Troubleshooting case'),opened:new Date(CASE.created).toLocaleString(),model:cfg.model};
 }
-function pdfName(meta){const d=new Date(CASE.created).toISOString().slice(0,10);return `${[meta.reg||APPNAME,meta.sn,d,(meta.title||'case').replace(/[^A-Za-z0-9]+/g,'-').slice(0,32).replace(/^-+|-+$/g,'')].filter(Boolean).join('_')}.pdf`}
+function caseAta(f){
+  // ATA chapter-subchapter from the first CAS / CMC entry that has one, else the chapter alone
+  const list=[...((f&&f.faults)||[]),...((f&&f.cmc)||[])].map(x=>String(x.ata||'').trim()).filter(Boolean);
+  const full=list.find(a=>/^\d\d-\d\d/.test(a));if(full)return full.slice(0,5);
+  const ch=list.find(a=>/^\d\d/.test(a));return ch?ch.slice(0,2):'';
+}
+function dateCode(d){d=d||new Date();return String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0')+String(d.getFullYear()).slice(-2)}
+// file name: TAIL_ATA_MMDDYY  (e.g. N1KE_21-31_102126.pdf)
+function pdfName(meta){const tail=(meta.reg||APPNAME).replace(/[^A-Za-z0-9-]/g,'');return `${[tail,caseAta(CASE.form),dateCode(new Date())].filter(Boolean).join('_')}.pdf`}
 function exportMarkdown(){
   const meta=exportMeta();
   let out=`# ${APPNAME} Troubleshooting Case — ${CASE.title}\n**Registration:** ${meta.reg||'—'} · **S/N:** ${meta.sn||'—'}${meta.times?`\n**Times:** ${meta.times}`:''}\nOpened ${meta.opened} · model ${cfg.model}\n\n`;
