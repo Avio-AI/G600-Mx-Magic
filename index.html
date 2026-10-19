@@ -945,7 +945,7 @@ async function openPage(docId,page,opt={}){
   if(d.m==='iWDM'){
     const svg=(d.svgs||[])[page-1];
     showModal(pg.cite,`<div class="kv"><b>iWDM — ${esc(d.title)}</b><br>System ${esc(d.c.slice(5))} · ATA ${esc(d.ata||'—')} · sheet ${esc((d.dia||[])[page-1]||page)} (${page} of ${d.pages})<br><span style="font-family:var(--mono);font-size:12px">${esc(d.path)}</span></div>
-     ${nav}<button class="btn2 small" id="zOut">−</button><button class="btn2 small" id="zIn">＋</button><button class="btn2 small" id="zFit">Fit</button><span class="zhint">Pinch to zoom</span></div>
+     ${nav}<button class="btn2 small" id="zOut">−</button><button class="btn2 small" id="zIn">＋</button><button class="btn2 small" id="zFit">Fit</button><span class="zhint">Pinch or double-tap to zoom</span></div>
      <div class="hlnote hidden" id="hlNote"></div>
      <div class="svgbox" id="svgBox"><div class="hint" style="padding:12px;color:#333">Loading schematic…</div></div>
      <details class="more" style="margin-top:10px"><summary>▸ Sheet text &amp; designators</summary><div class="pagetext">${esc(pg.text)}</div></details>`);
@@ -982,9 +982,21 @@ async function openPage(docId,page,opt={}){
       box.addEventListener('touchend',endPinch);box.addEventListener('touchcancel',endPinch);
       // Safari gesture events: keep the page itself from zooming
       ['gesturestart','gesturechange','gestureend'].forEach(t=>box.addEventListener(t,e=>e.preventDefault()));
-      // double-tap / double-click zooms in at that point
-      node.addEventListener('dblclick',e=>{const br=box.getBoundingClientRect(),ox=box.scrollLeft+e.clientX-br.left,oy=box.scrollTop+e.clientY-br.top,f=Math.min(ZMAX,z*2)/z;
-        z=z*f;node.style.width=(z*100)+'%';box.scrollLeft=ox*f-(e.clientX-br.left);box.scrollTop=oy*f-(e.clientY-br.top)});
+      // double-tap (touch) / double-click (mouse): zoom 2x at that point; near max zoom, back to whole sheet
+      const zoomAt=(cx,cy)=>{const br=box.getBoundingClientRect(),ox=box.scrollLeft+cx-br.left,oy=box.scrollTop+cy-br.top;
+        const nz=z>=ZMAX*0.6?1:Math.min(ZMAX,z*2),f=nz/z;z=nz;node.style.width=(z*100)+'%';
+        box.scrollLeft=ox*f-(cx-br.left);box.scrollTop=oy*f-(cy-br.top)};
+      let tap=null,lastTap=null;
+      box.addEventListener('touchstart',e=>{tap=e.touches.length===1?{x:e.touches[0].clientX,y:e.touches[0].clientY,t:Date.now(),moved:false}:null},{passive:true});
+      box.addEventListener('touchmove',e=>{if(tap&&e.touches.length===1&&Math.hypot(e.touches[0].clientX-tap.x,e.touches[0].clientY-tap.y)>10)tap.moved=true;if(e.touches.length>1)tap=null},{passive:true});
+      box.addEventListener('touchend',e=>{
+        if(!tap||tap.moved||e.touches.length||Date.now()-tap.t>300){tap=null;return}
+        const now=Date.now();
+        if(lastTap&&now-lastTap.t<320&&Math.hypot(tap.x-lastTap.x,tap.y-lastTap.y)<35){e.preventDefault();lastTap=null;zoomAt(tap.x,tap.y)}
+        else lastTap={x:tap.x,y:tap.y,t:now};
+        tap=null;
+      },{passive:false});
+      node.addEventListener('dblclick',e=>{e.preventDefault();zoomAt(e.clientX,e.clientY)});
       const terms=opt.hl||[];
       if(terms.length){
         hits=svgHighlight(node,terms);const note=$('#hlNote');note.classList.remove('hidden');
