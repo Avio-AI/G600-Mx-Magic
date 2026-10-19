@@ -1459,13 +1459,14 @@ async function buildPdf(meta){
   const font=(st='normal',sz=10,col=C.ink)=>{doc.setFont(SANS,st);doc.setFontSize(sz);doc.setTextColor(...col)};
   function header(){
     font('bold',9,C.amber);doc.text(pclean(`${APPNAME} TROUBLESHOOTING REPORT`),M,30);
+    font('bold',9,C.ink);doc.text('FOR REFERENCE ONLY',W/2,30,{align:'center'});
     font('bold',11,C.ink);const id=pclean(`${meta.reg||'Reg —'}   ·   S/N ${meta.sn||'—'}`);doc.text(id,W-M,30,{align:'right'});
     if(meta.times){font('normal',8.5,C.dim);doc.text(pclean(meta.times),W-M,44,{align:'right'})}
     doc.setDrawColor(...C.rule);doc.setLineWidth(.8);doc.line(M,hdrH-8,W-M,hdrH-8);
     y=hdrH+10;
   }
   function newPage(){doc.addPage();header()}
-  const need=h=>{if(y+h>H-58)newPage()};
+  const need=h=>{if(y+h>H-46)newPage()};
   // rich text: **bold**, `code`, [cite]
   function runs(t){const out=[];const rx=/(\*\*[^*]+\*\*|`[^`]+`|\[[A-Za-z][^\]\n]{1,80}\])/g;let i=0,m;
     while((m=rx.exec(t))){if(m.index>i)out.push({t:t.slice(i,m.index)});const v=m[0];
@@ -1538,7 +1539,7 @@ async function buildPdf(meta){
     }
   }
   y+=10;need(30);font('normal',8,C.dim);doc.text(doc.splitTextToSize('Troubleshooting aid output. Citations refer to the indexed maintenance data. Verify against the current revision of the approved maintenance data before any maintenance or return-to-service action.',CW),M,y+8);
-  const n=doc.getNumberOfPages();for(let p=1;p<=n;p++){doc.setPage(p);font('bold',9,C.ink);doc.text('FOR REFERENCE ONLY',W/2,H-40,{align:'center'});font('normal',8,C.dim);doc.text(pclean(`${meta.title}`).slice(0,90),M,H-26);doc.text(`Page ${p} of ${n}`,W-M,H-26,{align:'right'})}
+  const n=doc.getNumberOfPages();for(let p=1;p<=n;p++){doc.setPage(p);font('normal',8,C.dim);doc.text(pclean(`${meta.title}`).slice(0,90),M,H-26);doc.text(`Page ${p} of ${n}`,W-M,H-26,{align:'right'})}
   return doc.output('blob');
 }
 function shortTitle(f){
