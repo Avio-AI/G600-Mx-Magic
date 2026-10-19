@@ -170,7 +170,9 @@ mark{background:var(--mark-bg);color:var(--amber-glow);border-radius:2px}
 .ptable td.mate{color:var(--amber);cursor:pointer}
 .pwrap{overflow-x:hidden;max-height:60dvh;overflow-y:auto;border:1px solid var(--border);border-radius:6px}
 .dlink{display:inline-block;font-family:var(--mono);font-size:12px;color:var(--cyan);border:1px solid var(--cyan-dim);border-radius:3px;padding:1px 6px;margin:3px 4px 0 0;cursor:pointer}
-.svgbox{background:#fff;border-radius:6px;overflow:auto;max-height:70dvh;border:1px solid var(--border);touch-action:pan-x pan-y}
+.svgbox{background:#fff;border-radius:6px;overflow:auto;max-height:70dvh;border:1px solid var(--border);touch-action:pan-x pan-y;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;position:relative}
+.svgbox svg{transform-origin:0 0;will-change:transform}
+.zhint{font-size:12px;color:var(--text-dim);margin-left:auto}
 .svgbox img,.svgbox svg{display:block;width:100%;height:auto;max-width:none}
 .svgbox .hlbox{fill:#ffe600;fill-opacity:.45;stroke:#ff1f6b;stroke-width:90;stroke-opacity:.95;animation:hlpulse 1.4s ease-in-out 3}
 .svgbox g.hl path,.svgbox g.hl rect:not(.hlbox),.svgbox g.hl circle{stroke:#ff1f6b!important;stroke-opacity:1!important;stroke-width:70px!important}
@@ -943,19 +945,46 @@ async function openPage(docId,page,opt={}){
   if(d.m==='iWDM'){
     const svg=(d.svgs||[])[page-1];
     showModal(pg.cite,`<div class="kv"><b>iWDM — ${esc(d.title)}</b><br>System ${esc(d.c.slice(5))} · ATA ${esc(d.ata||'—')} · sheet ${esc((d.dia||[])[page-1]||page)} (${page} of ${d.pages})<br><span style="font-family:var(--mono);font-size:12px">${esc(d.path)}</span></div>
-     ${nav}<button class="btn2 small" id="zOut">−</button><button class="btn2 small" id="zIn">＋</button><button class="btn2 small" id="zFit">Fit</button></div>
+     ${nav}<button class="btn2 small" id="zOut">−</button><button class="btn2 small" id="zIn">＋</button><button class="btn2 small" id="zFit">Fit</button><span class="zhint">Pinch to zoom</span></div>
      <div class="hlnote hidden" id="hlNote"></div>
      <div class="svgbox" id="svgBox"><div class="hint" style="padding:12px;color:#333">Loading schematic…</div></div>
      <details class="more" style="margin-top:10px"><summary>▸ Sheet text &amp; designators</summary><div class="pagetext">${esc(pg.text)}</div></details>`);
-    let z=1,hits=[],hi=0;const box=$('#svgBox');
+    let z=1,hits=[],hi=0;const box=$('#svgBox');const ZMAX=12;
     const focusHit=k=>{const h=hits[k];if(!h)return;const br=box.getBoundingClientRect(),er=h.el.getBoundingClientRect();
       box.scrollTo({left:box.scrollLeft+er.left-br.left-(br.width-er.width)/2,top:box.scrollTop+er.top-br.top-(br.height-er.height)/2,behavior:'smooth'})};
     const setZ=(v,keep)=>{const cx=(box.scrollLeft+box.clientWidth/2)/Math.max(1,box.scrollWidth),cy=(box.scrollTop+box.clientHeight/2)/Math.max(1,box.scrollHeight);
-      z=Math.min(8,Math.max(1,v));const im=box.querySelector('svg,img');if(im)im.style.width=(z*100)+'%';
+      z=Math.min(ZMAX,Math.max(1,v));const im=box.querySelector('svg,img');if(im)im.style.width=(z*100)+'%';
       if(keep!==false){box.scrollLeft=cx*box.scrollWidth-box.clientWidth/2;box.scrollTop=cy*box.scrollHeight-box.clientHeight/2}};
     $('#zIn').onclick=()=>setZ(z*1.6);$('#zOut').onclick=()=>setZ(z/1.6);$('#zFit').onclick=()=>setZ(1);
     if(svg)svgText(svg).then(txt=>{if(!document.body.contains(box))return;
-      const node=svgNode(txt);box.innerHTML='';box.appendChild(node);node.ondblclick=()=>setZ(z*1.6);
+      const node=svgNode(txt);box.innerHTML='';box.appendChild(node);
+      // ── pinch-zoom (two fingers) around the pinch point; one finger scrolls natively
+      let g=null,raf=0,last=null;
+      const pts=e=>{const a=e.touches[0],b=e.touches[1];return {d:Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY),x:(a.clientX+b.clientX)/2,y:(a.clientY+b.clientY)/2}};
+      const startPinch=e=>{const p=pts(e),br=box.getBoundingClientRect();
+        g={z0:z,d0:Math.max(1,p.d),m0:p,ox:box.scrollLeft+p.x-br.left,oy:box.scrollTop+p.y-br.top,s:1};last=p;
+        node.style.transformOrigin=`${g.ox}px ${g.oy}px`};
+      box.addEventListener('touchstart',e=>{if(e.touches.length===2){e.preventDefault();startPinch(e)}},{passive:false});
+      box.addEventListener('touchmove',e=>{
+        if(e.touches.length!==2){return}
+        e.preventDefault();if(!g)startPinch(e);
+        const p=pts(e);last=p;g.s=Math.min(ZMAX,Math.max(1,g.z0*p.d/g.d0))/g.z0;
+        if(!raf)raf=requestAnimationFrame(()=>{raf=0;if(!g)return;node.style.transform=`translate(${last.x-g.m0.x}px,${last.y-g.m0.y}px) scale(${g.s})`});
+      },{passive:false});
+      const endPinch=e=>{
+        if(!g||(e.touches&&e.touches.length>=2))return;
+        const br=box.getBoundingClientRect(),s=g.s,p=last||g.m0;
+        node.style.transform='';node.style.transformOrigin='0 0';
+        z=g.z0*s;node.style.width=(z*100)+'%';
+        box.scrollLeft=g.ox*s-(p.x-br.left);box.scrollTop=g.oy*s-(p.y-br.top);
+        g=null;
+      };
+      box.addEventListener('touchend',endPinch);box.addEventListener('touchcancel',endPinch);
+      // Safari gesture events: keep the page itself from zooming
+      ['gesturestart','gesturechange','gestureend'].forEach(t=>box.addEventListener(t,e=>e.preventDefault()));
+      // double-tap / double-click zooms in at that point
+      node.addEventListener('dblclick',e=>{const br=box.getBoundingClientRect(),ox=box.scrollLeft+e.clientX-br.left,oy=box.scrollTop+e.clientY-br.top,f=Math.min(ZMAX,z*2)/z;
+        z=z*f;node.style.width=(z*100)+'%';box.scrollLeft=ox*f-(e.clientX-br.left);box.scrollTop=oy*f-(e.clientY-br.top)});
       const terms=opt.hl||[];
       if(terms.length){
         hits=svgHighlight(node,terms);const note=$('#hlNote');note.classList.remove('hidden');
