@@ -1061,7 +1061,7 @@ async function openPage(docId,page,opt={}){
      ${DHIST.length?`<select class="recent" id="pgRecent">${recentOptions({docId,page})}</select>`:''}
      <div class="hlnote hidden" id="hlNote"></div>
      <div class="svgbox" id="svgBox"><div class="hint" style="padding:12px;color:#333">Loading schematic…</div></div>
-     <details class="more" style="margin-top:10px"><summary>▸ Sheet text &amp; designators</summary><div class="pagetext">${esc(pg.text)}</div></details>`);
+     <details class="more" style="margin-top:10px"><summary>▸ Sheet Text &amp; Designators</summary><div class="pagetext">${esc(pg.text)}</div></details>`);
     let z=1,hits=[],hi=0;const box=$('#svgBox');const ZMAX=12;
     const pr=$('#pgRecent');if(pr)pr.onchange=e=>{if(e.target.value!=='')openRecent(e.target.value,true)};
     const focusHit=k=>{const h=hits[k];if(!h)return;const br=box.getBoundingClientRect(),er=h.el.getBoundingClientRect();
