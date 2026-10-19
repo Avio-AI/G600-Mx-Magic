@@ -176,6 +176,8 @@ mark{background:var(--mark-bg);color:var(--amber-glow);border-radius:2px}
 .svgbox text.xref{fill:#0057d8!important;text-decoration:underline;cursor:pointer;font-weight:700}
 .svgbox rect.xhit{fill:#0057d8;fill-opacity:.08;stroke:#0057d8;stroke-opacity:.35;stroke-width:30;cursor:pointer}
 .xlist .res{cursor:pointer}
+.recent{width:100%;margin:0 0 8px;font-size:14px;padding:8px 10px}
+#wRecentWrap{margin-bottom:12px}
 .svgbox img,.svgbox svg{display:block;width:100%;height:auto;max-width:none}
 .svgbox .hlbox{fill:#ffe600;fill-opacity:.45;stroke:#ff1f6b;stroke-width:90;stroke-opacity:.95;animation:hlpulse 1.4s ease-in-out 3}
 .svgbox g.hl path,.svgbox g.hl rect:not(.hlbox),.svgbox g.hl circle{stroke:#ff1f6b!important;stroke-opacity:1!important;stroke-width:70px!important}
@@ -292,6 +294,7 @@ mark{background:var(--mark-bg);color:var(--amber-glow);border-radius:2px}
           </div>
           <div class="hint">From the G600 iWDM. Tap a diagram to open the schematic. No AI or API key needed.</div>
         </div>
+        <div id="wRecentWrap"></div>
         <div id="wResults"></div>
       </div>
 
@@ -947,6 +950,28 @@ function svgHighlight(svg,terms){
 }
 /* ── off-page references on wiring sheets: (SEE 73P…J), (SEE … SHT 3.001), (See Sht 3.002), See 24-60-00 ── */
 const NAV=[];
+/* ── drawings viewed this session (newest first) ── */
+const HIST_KEY='g600ts_dwghist';
+let DHIST=(()=>{try{return JSON.parse(sessionStorage.getItem(HIST_KEY)||'[]')}catch(e){return []}})();
+function recordDrawing(d,page,hl){
+  const sheet=(d.dia||[])[page-1]||String(page);
+  DHIST=DHIST.filter(h=>!(h.docId===d.id&&h.page===page));
+  DHIST.unshift({docId:d.id,page,sys:d.c.slice(5),sheet,title:(d.title||'').split('—')[0].trim(),hl:(hl||[]).slice(0,4),t:Date.now()});
+  DHIST=DHIST.slice(0,30);try{sessionStorage.setItem(HIST_KEY,JSON.stringify(DHIST))}catch(e){}
+  renderRecentTab();
+}
+function recentOptions(cur){
+  return `<option value="">Recent Drawings (${DHIST.length})</option>`+DHIST.map((h,i)=>{
+    const lab=`${h.sys.replace(/_TP$/,'')} Sh ${h.sheet} — ${h.title}${h.hl.length?' · '+h.hl.map(x=>x.t).join(', '):''}`;
+    return `<option value="${i}"${cur&&h.docId===cur.docId&&h.page===cur.page?' disabled':''}>${esc(lab)}</option>`}).join('');
+}
+function openRecent(i,fromView){const h=DHIST[+i];if(!h)return;openPage(h.docId,h.page,{hl:h.hl,back:!!fromView})}
+function renderRecentTab(){
+  const w=document.getElementById('wRecentWrap');if(!w)return;
+  if(!DHIST.length){w.innerHTML='';return}
+  w.innerHTML=`<select class="recent" id="wRecent">${recentOptions()}</select>`;
+  document.getElementById('wRecent').onchange=e=>{if(e.target.value!=='')openRecent(e.target.value,false);e.target.value=''};
+}
 const RX_DWG=/\bSEE\s+(\d\dP\d{6,8}[A-Z]?)(?:\s+SH(?:EE)?T\.?\s*([\d.]+))?/i, RX_SHT=/\bSEE\s+(?:SHT|SHEET)\.?\s*([\d.]+)/i, RX_ATA=/\b(\d\d-\d\d-\d\d)\b/;
 function resolveDrawing(num){
   const N=num.toUpperCase(),keys=[...DATA.wsys.keys()];
@@ -1029,13 +1054,16 @@ async function openPage(docId,page,opt={}){
   window._curPage={docId,page,opt:{hl:opt.hl}};
   const nav=`<div class="zbar">${NAV.length?'<button class="btn2 small" id="pgBack" title="Back to previous drawing">⟲ Back</button>':''}<button class="btn2 small" id="pgPrev" ${page<=1?'disabled':''}>◂ Prev</button><button class="btn2 small" id="pgNext" ${page>=d.pages?'disabled':''}>Next ▸</button><button class="btn2 small" id="pgCopy">Copy text</button>`;
   if(d.m==='iWDM'){
+    recordDrawing(d,page,opt.hl);
     const svg=(d.svgs||[])[page-1];
     showModal(pg.cite,`<div class="kv"><b>iWDM — ${esc(d.title)}</b><br>System ${esc(d.c.slice(5))} · ATA ${esc(d.ata||'—')} · sheet ${esc((d.dia||[])[page-1]||page)} (${page} of ${d.pages})<br><span style="font-family:var(--mono);font-size:12px">${esc(d.path)}</span></div>
      ${nav}<button class="btn2 small" id="zOut">−</button><button class="btn2 small" id="zIn">＋</button><button class="btn2 small" id="zFit">Fit</button><span class="zhint">Pinch or double-tap to zoom</span></div>
+     ${DHIST.length?`<select class="recent" id="pgRecent">${recentOptions({docId,page})}</select>`:''}
      <div class="hlnote hidden" id="hlNote"></div>
      <div class="svgbox" id="svgBox"><div class="hint" style="padding:12px;color:#333">Loading schematic…</div></div>
      <details class="more" style="margin-top:10px"><summary>▸ Sheet text &amp; designators</summary><div class="pagetext">${esc(pg.text)}</div></details>`);
     let z=1,hits=[],hi=0;const box=$('#svgBox');const ZMAX=12;
+    const pr=$('#pgRecent');if(pr)pr.onchange=e=>{if(e.target.value!=='')openRecent(e.target.value,true)};
     const focusHit=k=>{const h=hits[k];if(!h)return;const br=box.getBoundingClientRect(),er=h.el.getBoundingClientRect();
       box.scrollTo({left:box.scrollLeft+er.left-br.left-(br.width-er.width)/2,top:box.scrollTop+er.top-br.top-(br.height-er.height)/2,behavior:'smooth'})};
     const setZ=(v,keep)=>{const cx=(box.scrollLeft+box.clientWidth/2)/Math.max(1,box.scrollWidth),cy=(box.scrollTop+box.clientHeight/2)/Math.max(1,box.scrollHeight);
@@ -1087,6 +1115,8 @@ async function openPage(docId,page,opt={}){
       const terms=opt.hl||[];
       if(terms.length){
         hits=svgHighlight(node,terms);const note=$('#hlNote');note.classList.remove('hidden');
+        {const h=DHIST.find(x=>x.docId===d.id&&x.page===page);if(h){const got=new Set(hits.map(x=>x.label));h.hl=terms.filter(t=>got.has(t.t)).slice(0,4);try{sessionStorage.setItem(HIST_KEY,JSON.stringify(DHIST))}catch(e){}renderRecentTab();
+          const pr=$('#pgRecent');if(pr){const v=pr.value;pr.innerHTML=recentOptions({docId:d.id,page});pr.value=v}}}
         const want=[...new Set(terms.map(t=>t.t))].join(', ');
         if(hits.length){const labels=[...new Set(hits.map(h=>h.label))];
           note.innerHTML=`Highlighted: <b>${esc(labels.join(', '))}</b>${hits.length>1?` · ${hits.length} places <button class="btn2 small" id="hlNext" style="margin-left:6px">Next ▸</button>`:''}`;
@@ -1512,6 +1542,7 @@ async function doWiring(){
     bindDiag($('#wResults'));
   }catch(e){$('#wResults').innerHTML=`<div class="errbox">${esc(e.message)}</div>`}
 }
+renderRecentTab();
 $('#wGo').onclick=doWiring;$('#wQuery').addEventListener('keydown',e=>{if(e.key==='Enter')doWiring()});
 
 /* ═════════════════ BOOT ═════════════════ */
