@@ -184,6 +184,9 @@ mark{background:var(--mark-bg);color:var(--amber-glow);border-radius:2px}
 .svgbox g.hl text{fill:#d0004a!important;font-weight:700}
 .svgbox text.hlwire{fill:#d0004a!important;font-weight:700}
 @keyframes hlpulse{50%{fill-opacity:.12;stroke-opacity:.35}}
+.svgbox .unitfill{fill:#ffe600;fill-opacity:.35;stroke:none}
+:root[data-theme="light"] .svgbox .unitfill{fill:#a9d4ff;fill-opacity:.85}
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]) .svgbox .unitfill{fill:#a9d4ff;fill-opacity:.85}}
 .hlnote{font-size:12.5px;margin:-2px 0 8px;color:var(--text-dim)} .hlnote b{color:#ff1f6b}
 .ptable td.wirecell{color:var(--cyan);cursor:pointer;text-decoration:underline dotted}
 .zbar{display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;align-items:center}
@@ -915,6 +918,32 @@ function svgNode(txt){
   return document.importNode(svg,true);
 }
 const wireBase=w=>{const m=String(w||'').toUpperCase().match(/^\d*[A-Z]+\d+/);return m?m[0]:''};
+function unitBox(svg,g,tb){
+  // the equipment body for a designator label: smallest box that contains the label, or sits just above it
+  const scope=(g&&g!==svg)?[g,svg]:[svg];
+  for(const sc of scope){
+    let best=null;
+    for(const el of sc.querySelectorAll('rect:not(.hlbox):not(.unitfill):not(.xhit),path')){
+      let b;try{b=el.getBBox()}catch(e){continue}
+      if(b.width<tb.height*4||b.height<tb.height*3)continue;
+      const cx=tb.x+tb.width/2,cy=tb.y+tb.height/2;
+      const inside=cx>b.x&&cx<b.x+b.width&&cy>b.y&&cy<b.y+b.height;
+      const below=cy>=b.y+b.height-tb.height*.6&&cy<=b.y+b.height+tb.height*2.6&&tb.x<b.x+b.width+tb.height&&tb.x+tb.width>b.x-tb.height;
+      if(!inside&&!below)continue;
+      const a=b.width*b.height;if(!best||a<best.a)best={el,b,a};
+    }
+    if(best&&(sc!==svg||best.a<1e9))return best;
+  }
+  return null;
+}
+function fillUnit(svg,g,tx){
+  let tb;try{tb=tx.getBBox()}catch(e){return}
+  const u=unitBox(svg,g,tb);if(!u||u.el.closest('.unitdone'))return;
+  const r=document.createElementNS('http://www.w3.org/2000/svg','rect');r.setAttribute('class','unitfill');
+  r.setAttribute('x',u.b.x);r.setAttribute('y',u.b.y);r.setAttribute('width',u.b.width);r.setAttribute('height',u.b.height);
+  // bottom layer: under every line, label and highlight box
+  const first=[...svg.children].find(n=>n.nodeName!=='defs'&&n.nodeName!=='style');svg.insertBefore(r,first||null);u.el.classList.add('unitdone');
+}
 function svgHighlight(svg,terms){
   // terms: [{t:'006A5P1',kind:'comp'|'wire'}]; returns matched labels
   const found=[],texts=[...svg.querySelectorAll('text')];
@@ -935,11 +964,12 @@ function svgHighlight(svg,terms){
         const h=tb.height*1.9,pad=tb.height*.35;
         r.setAttribute('x',x0-pad);r.setAttribute('y',tb.y-pad);r.setAttribute('width',x1-x0+2*pad);r.setAttribute('height',h);r.setAttribute('rx',pad);
       } else if(bb.height>tb.height*14||bb.width>tb.width*14){
+        fillUnit(svg,null,tx);
         // label sits in an oversized group (several symbols): box the label only
         tx.classList.add('hlwire');const pad=tb.height*.5;
         r.setAttribute('x',tb.x-pad);r.setAttribute('y',tb.y-pad);r.setAttribute('width',tb.width+2*pad);r.setAttribute('height',tb.height+2*pad);r.setAttribute('rx',pad);
       } else {
-        g.classList.add('hl');
+        g.classList.add('hl');fillUnit(svg,g,tx);
         const pad=Math.max(250,Math.max(bb.width,bb.height)*.06);
         r.setAttribute('x',bb.x-pad);r.setAttribute('y',bb.y-pad);r.setAttribute('width',bb.width+2*pad);r.setAttribute('height',bb.height+2*pad);r.setAttribute('rx',pad/2);
       }
