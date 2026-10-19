@@ -1519,15 +1519,15 @@ async function buildPdf(meta){
   // ── page 1 summary block
   header();
   font('bold',15,C.ink);doc.text(doc.splitTextToSize(pclean(meta.title),CW),M,y+14);y+=22*Math.min(2,doc.splitTextToSize(pclean(meta.title),CW).length);
-  font('normal',9,C.dim);doc.text(pclean(`${APPNAME} · Registration ${meta.reg||'—'} · S/N ${meta.sn||'—'}${meta.apt?' · Airport '+meta.apt:''} · Opened ${meta.opened} · Exported ${new Date().toLocaleString()} · ${meta.model}`),M,y+6,{maxWidth:CW});y+=20;
-  if(meta.times){doc.setFillColor(...C.fill);doc.rect(M,y,CW,22,'F');font('bold',9,C.ink);doc.text(pclean(meta.times),M+8,y+14.5);y+=32}
+  font('normal',9,C.dim);doc.text(pclean(`${APPNAME}${meta.apt?' · Airport '+meta.apt:''} · Opened ${meta.opened} · Exported ${new Date().toLocaleString()} · ${meta.model}`),M,y+6,{maxWidth:CW});y+=20;
   // ── conversation
   let lastRole=null;
   for(const m of CASE.msgs){
     if(m.role==='user'){
       const t=m.content.filter(b=>b.type==='text'&&!b.text.startsWith('<<CONTEXT>>')&&!b.text.startsWith('Tool budget reached')).map(b=>b.text).join('\n');
       if(!t)continue;label('TECHNICIAN',C.teal);lastRole='user';
-      t.replace(/^NEW TROUBLESHOOTING CASE\n?/,'').split('\n').forEach(ln=>{if(!ln.trim()){y+=4;return}const b=ln.match(/^\s+•\s*(.*)/);b?para(b[1],{indent:16,bullet:'•'}):para(ln)});
+      // aircraft details (registration, serial, times, airport) live only in the page header / details line
+      t.replace(/^NEW TROUBLESHOOTING CASE\n?/,'').split('\n').filter(ln=>!/^(Aircraft|Times|Airport): /.test(ln)).forEach(ln=>{if(!ln.trim()){y+=4;return}const b=ln.match(/^\s+•\s*(.*)/);b?para(b[1],{indent:16,bullet:'•'}):para(ln)});
     }else{
       const tools=m.content.filter(b=>b.type==='tool_use').map(b=>toolLabel(b));
       const txt=m.content.filter(b=>b.type==='text'&&b.text).map(b=>b.text).join('\n\n');
@@ -1538,7 +1538,7 @@ async function buildPdf(meta){
     }
   }
   y+=10;need(30);font('normal',8,C.dim);doc.text(doc.splitTextToSize('Troubleshooting aid output. Citations refer to the indexed maintenance data. Verify against the current revision of the approved maintenance data before any maintenance or return-to-service action.',CW),M,y+8);
-  const n=doc.getNumberOfPages();for(let p=1;p<=n;p++){doc.setPage(p);font('bold',9,C.ink);doc.text('FOR REFERENCE ONLY',W/2,H-40,{align:'center'});font('normal',8,C.dim);doc.text(pclean(`${meta.reg||APPNAME} · S/N ${meta.sn||'—'} · ${meta.title}`).slice(0,90),M,H-26);doc.text(`Page ${p} of ${n}`,W-M,H-26,{align:'right'})}
+  const n=doc.getNumberOfPages();for(let p=1;p<=n;p++){doc.setPage(p);font('bold',9,C.ink);doc.text('FOR REFERENCE ONLY',W/2,H-40,{align:'center'});font('normal',8,C.dim);doc.text(pclean(`${meta.title}`).slice(0,90),M,H-26);doc.text(`Page ${p} of ${n}`,W-M,H-26,{align:'right'})}
   return doc.output('blob');
 }
 function shortTitle(f){
