@@ -173,6 +173,9 @@ mark{background:var(--mark-bg);color:var(--amber-glow);border-radius:2px}
 .svgbox{background:#fff;border-radius:6px;overflow:auto;max-height:70dvh;border:1px solid var(--border);touch-action:pan-x pan-y;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;position:relative}
 .svgbox svg{transform-origin:0 0;will-change:transform}
 .zhint{font-size:12px;color:var(--text-dim);margin-left:auto}
+.kbadge{display:inline-block;font-family:var(--mono);font-size:10px;letter-spacing:1px;padding:0 4px;margin-right:6px;border-radius:3px;border:1px solid var(--amber-dim);color:var(--amber);vertical-align:2px}
+.kbadge.cmc{border-color:var(--cyan-dim);color:var(--cyan)}
+#cmcChips:empty,#faultChips:empty{display:none}
 .svgbox text.xref{fill:#0057d8!important;text-decoration:underline;cursor:pointer;font-weight:700}
 .svgbox rect.xhit{fill:#0057d8;fill-opacity:.08;stroke:#0057d8;stroke-opacity:.35;stroke-width:30;cursor:pointer}
 .xlist .res{cursor:pointer}
@@ -212,8 +215,7 @@ mark{background:var(--mark-bg);color:var(--amber-glow);border-radius:2px}
     <section class="view" id="intakeView">
       <div class="tabs">
         <button class="tab on" data-tab="describe">Describe</button>
-        <button class="tab" data-tab="fault">CAS</button>
-        <button class="tab" data-tab="cmc">CMC</button>
+        <button class="tab" data-tab="fault">CAS / CMC</button>
         <button class="tab" data-tab="search">Search</button>
         <button class="tab" data-tab="wiring">Wiring</button>
       </div>
@@ -225,24 +227,16 @@ mark{background:var(--mark-bg);color:var(--amber-glow);border-radius:2px}
         </div>
 
         <div class="card" id="faultCard">
-          <h3>CAS message</h3>
+          <h3>CAS message or CMC code</h3>
           <div class="ac">
-            <input id="faultInput" placeholder="e.g. L-R Bleed Air Hot or CPCS 1-2 Fail" autocomplete="off" autocapitalize="words" spellcheck="false">
+            <input id="faultInput" placeholder="CAS message, CMC message or code" autocomplete="off" autocapitalize="characters" spellcheck="false">
             <div class="aclist hidden" id="faultList"></div>
           </div>
           <div class="chips" id="faultChips"></div>
-          <div class="hint" id="faultHint">Searches the G500/G600 CAS message tables (message, color, trigger logic). Add every message that's showing, not just the first.</div>
+          <div class="chips" id="cmcChips"></div>
+          <div class="hint" id="faultHint">One search for CAS messages (color, trigger logic), CMC maintenance messages and CMC fault codes (decoded to ATA, fault number and reporting unit). Add every message that's showing, not just the first.</div>
         </div>
 
-        <div class="card" id="cmcCard">
-          <h3>CMC maintenance message / fault code</h3>
-          <div class="ac">
-            <input id="cmcInput" placeholder="Code or message, e.g. 2480023SPL1" autocomplete="off" autocapitalize="characters" spellcheck="false">
-            <div class="aclist hidden" id="cmcList"></div>
-          </div>
-          <div class="chips" id="cmcChips"></div>
-          <div class="hint">Type the fault code or the maintenance message name from the CMC. Fault codes are decoded (ATA, fault number, reporting unit) and matched to the AMM / FSI pages that name the message.</div>
-        </div>
 
         <div class="card">
           <h3>Flight phase &amp; conditions</h3>
@@ -610,23 +604,15 @@ function searchCmc(q,max=12){
   return out;
 }
 function cmcLine(x){return x.kind==='code'?`${x.code} — ATA ${x.ata}, fault ${x.num}, reported by ${x.lru}`:`${x.msg}${x.ata?` — ATA ${x.ata}`:''}, reported by ${x.lru}`}
-let selCmc=[],cmcIdx=-1,cmcItems=[];
+let selCmc=[];
 function renderCmcChips(){
-  $('#cmcChips').innerHTML=selCmc.map((x,i)=>`<div class="fchip"><div><div class="t">${esc(x.kind==='code'?x.code:x.msg)}</div><div class="m">${x.custom?'<span class="warnnote">not in the index — sent as typed</span>':esc(x.kind==='code'?`ATA ${x.ata} · fault ${x.num} · reported by ${x.lru}`:`reported by ${x.lru}${x.ata?' · ATA '+x.ata:''}`)}${x.refs&&x.refs.length?' · '+esc(x.refs.slice(0,2).map(r=>r[2]).join(', ')):''}</div></div><button data-i="${i}" title="Remove">✕</button></div>`).join('');
+  $('#cmcChips').innerHTML=selCmc.map((x,i)=>`<div class="fchip"><div><div class="t"><span class="kbadge cmc">CMC</span>${esc(x.kind==='code'?x.code:x.msg)}</div><div class="m">${x.custom?'<span class="warnnote">not in the index — sent as typed</span>':esc(x.kind==='code'?`ATA ${x.ata} · fault ${x.num} · reported by ${x.lru}`:`reported by ${x.lru}${x.ata?' · ATA '+x.ata:''}`)}${x.refs&&x.refs.length?' · '+esc(x.refs.slice(0,2).map(r=>r[2]).join(', ')):''}</div></div><button data-i="${i}" title="Remove">✕</button></div>`).join('');
   $$('#cmcChips button').forEach(b=>b.onclick=()=>{selCmc.splice(+b.dataset.i,1);renderCmcChips()});
 }
-function renderCmcAc(){
-  const q=$('#cmcInput').value.trim(),L=$('#cmcList');if(!q||!DATA.ready){L.classList.add('hidden');return}
-  cmcItems=searchCmc(q,12);
-  L.innerHTML=cmcItems.map((x,i)=>`<div class="acitem${i===cmcIdx?' sel':''}" data-i="${i}"><div class="acmsg">${esc(x.kind==='code'?x.code:x.msg)}</div><div class="acmeta">${esc(x.kind==='code'?`Fault code · ATA ${x.ata} · fault ${x.num} · reported by ${x.lru}${x.refs.length?'':' (decoded)'}`:`Reported by ${x.lru}${x.ata?' · ATA '+x.ata:''} · ${x.refs.length} reference${x.refs.length===1?'':'s'}`)}</div></div>`).join('')+
-    `<div class="acitem" data-custom="1"><div class="acmeta">Use “${esc(q)}” as typed</div></div>`;
-  L.classList.remove('hidden');
-  $$('#cmcList .acitem').forEach(el=>el.onmousedown=e=>{e.preventDefault();pickCmc(el.dataset.custom?null:cmcItems[+el.dataset.i])});
-}
 function pickCmc(x){
-  if(!x){const q=$('#cmcInput').value.trim();if(!q)return;x={kind:'msg',msg:q.toUpperCase(),lru:q.split('-')[0].toUpperCase(),ata:'',refs:[],custom:true}}
+  if(!x){const q=$('#faultInput').value.trim();if(!q)return;x={kind:'msg',msg:q.toUpperCase(),lru:q.split('-')[0].toUpperCase(),ata:'',refs:[],custom:true}}
   if(!selCmc.some(y=>(y.code||y.msg)===(x.code||x.msg)))selCmc.push(x);
-  $('#cmcInput').value='';cmcIdx=-1;$('#cmcList').classList.add('hidden');renderCmcChips();
+  renderCmcChips();
 }
 
 /* ═════════════════ AI TOOLS ═════════════════ */
@@ -1284,17 +1270,31 @@ function renderBadges(err){
 /* ═════════════════ INTAKE ═════════════════ */
 let selFaults=[],acIdx=-1,acItems=[];
 function renderFaultChips(){
-  $('#faultChips').innerHTML=selFaults.map((f,i)=>`<div class="fchip"><div><div class="t"><span class="cdot ${esc(f.color||'')}"></span>${esc(f.msg)}</div><div class="m">${f.custom?'<span class="warnnote">not in CAS tables — typed as entered</span>':`${f.color?esc(f.color)+' · ':''}ATA ${esc(f.ata||'?')} · ${esc(f.cite||'')}${f.cause?'<br>'+esc(f.cause.slice(0,160)):''}`}</div></div><button data-i="${i}" title="Remove">✕</button></div>`).join('');
+  $('#faultChips').innerHTML=selFaults.map((f,i)=>`<div class="fchip"><div><div class="t"><span class="kbadge">CAS</span><span class="cdot ${esc(f.color||'')}"></span>${esc(f.msg)}</div><div class="m">${f.custom?'<span class="warnnote">not in CAS tables — typed as entered</span>':`${f.color?esc(f.color)+' · ':''}ATA ${esc(f.ata||'?')} · ${esc(f.cite||'')}${f.cause?'<br>'+esc(f.cause.slice(0,160)):''}`}</div></div><button data-i="${i}" title="Remove">✕</button></div>`).join('');
   $$('#faultChips button').forEach(b=>b.onclick=()=>{selFaults.splice(+b.dataset.i,1);renderFaultChips()});
 }
 function renderAc(){
   const q=$('#faultInput').value.trim();const L=$('#faultList');
   if(!q||!DATA.ready){L.classList.add('hidden');return}
-  acItems=searchFaults(q,12);
-  L.innerHTML=acItems.map((f,i)=>`<div class="acitem${i===acIdx?' sel':''}" data-i="${i}"><div class="acmsg cas-${esc(f.color||'x')}">${esc(f.msg)}</div><div class="acmeta">${f.color?esc(f.color)+' · ':''}ATA ${esc(f.ata)} · ${esc(f.cause?f.cause.slice(0,90):f.cite)}</div></div>`).join('')+
+  // CAS and CMC together; a code-shaped or "UNIT-message" query puts CMC first
+  const cas=searchFaults(q,8).map(f=>({t:'cas',f})),cmc=searchCmc(q,8).map(x=>({t:'cmc',x}));
+  const cmcFirst=!!decodeCmc(q)||/^[A-Z][A-Z0-9]{1,5}-/i.test(q.trim());
+  acItems=(cmcFirst?[...cmc,...cas]:[...cas,...cmc]).slice(0,14);
+  L.innerHTML=acItems.map((it,i)=>{const sel=i===acIdx?' sel':'';
+    if(it.t==='cas'){const f=it.f;return `<div class="acitem${sel}" data-i="${i}"><div class="acmsg cas-${esc(f.color||'x')}"><span class="kbadge">CAS</span>${esc(f.msg)}</div><div class="acmeta">${f.color?esc(f.color)+' · ':''}ATA ${esc(f.ata)} · ${esc(f.cause?f.cause.slice(0,90):f.cite)}</div></div>`}
+    const x=it.x;return `<div class="acitem${sel}" data-i="${i}"><div class="acmsg"><span class="kbadge cmc">CMC</span>${esc(x.kind==='code'?x.code:x.msg)}</div><div class="acmeta">${esc(x.kind==='code'?`Fault code · ATA ${x.ata} · fault ${x.num} · reported by ${x.lru}${x.refs.length?'':' (decoded)'}`:`Maintenance message · reported by ${x.lru}${x.ata?' · ATA '+x.ata:''}`)}</div></div>`}).join('')+
     `<div class="acitem" data-custom="1"><div class="acmeta">Use “${esc(q)}” as typed</div></div>`;
   L.classList.remove('hidden');
-  $$('#faultList .acitem').forEach(el=>el.onmousedown=e=>{e.preventDefault();pickFault(el.dataset.custom?null:acItems[+el.dataset.i])});
+  $$('#faultList .acitem').forEach(el=>el.onmousedown=e=>{e.preventDefault();pickAny(el.dataset.custom?null:acItems[+el.dataset.i])});
+}
+function pickAny(it){
+  if(it){it.t==='cmc'?pickCmc(it.x):pickFault(it.f);$('#faultInput').value='';$('#faultList').classList.add('hidden');acIdx=-1;return}
+  // typed: code- or unit-message-shaped -> CMC, otherwise CAS
+  const q=$('#faultInput').value.trim();if(!q)return;
+  if(decodeCmc(q)){const d=decodeCmc(q);pickCmc({kind:'code',code:d.code,ata:d.ata,num:d.num,lru:d.lru,refs:[]})}
+  else if(/^[A-Z][A-Z0-9]{1,5}-/i.test(q))pickCmc({kind:'msg',msg:q.toUpperCase(),lru:q.split('-')[0].toUpperCase(),ata:'',refs:[],custom:true});
+  else pickFault(null);
+  $('#faultInput').value='';$('#faultList').classList.add('hidden');acIdx=-1;
 }
 function pickFault(f){
   if(!f){const q=$('#faultInput').value.trim();if(!q)return;f={msg:q,cause:'',color:'',ata:'',custom:true}}
@@ -1305,16 +1305,9 @@ $('#faultInput').addEventListener('input',()=>{acIdx=-1;renderAc()});
 $('#faultInput').addEventListener('keydown',e=>{
   if(e.key==='ArrowDown'){acIdx=Math.min(acIdx+1,acItems.length-1);renderAc();e.preventDefault()}
   else if(e.key==='ArrowUp'){acIdx=Math.max(acIdx-1,-1);renderAc();e.preventDefault()}
-  else if(e.key==='Enter'){e.preventDefault();pickFault(acIdx>=0?acItems[acIdx]:(acItems[0]||null))}
+  else if(e.key==='Enter'){e.preventDefault();pickAny(acIdx>=0?acItems[acIdx]:(acItems[0]||null))}
 });
 $('#faultInput').addEventListener('blur',()=>setTimeout(()=>$('#faultList').classList.add('hidden'),150));
-$('#cmcInput').addEventListener('input',()=>{cmcIdx=-1;renderCmcAc()});
-$('#cmcInput').addEventListener('keydown',e=>{
-  if(e.key==='ArrowDown'){cmcIdx=Math.min(cmcIdx+1,cmcItems.length-1);renderCmcAc();e.preventDefault()}
-  else if(e.key==='ArrowUp'){cmcIdx=Math.max(cmcIdx-1,-1);renderCmcAc();e.preventDefault()}
-  else if(e.key==='Enter'){e.preventDefault();pickCmc(cmcIdx>=0?cmcItems[cmcIdx]:(cmcItems[0]||null))}
-});
-$('#cmcInput').addEventListener('blur',()=>setTimeout(()=>$('#cmcList').classList.add('hidden'),150));
 
 const READING_PRESETS=[['Duct / mix temp','°C'],['Bleed press','psi'],['Bleed temp','°C'],['Pack outlet temp','°C'],['Hyd press','psi'],['Oil press','psi'],['Oil temp','°C'],['Fuel temp','°C'],['N1','%'],['N2','%'],['TGT','°C'],['DC bus','V'],['AC bus','V'],['Gen load','A'],['Brake temp','°C'],['Tire press','psi']];
 function addReading(p='',v='',u=''){
@@ -1330,9 +1323,9 @@ let curTab='describe';
 $$('.tab').forEach(t=>t.onclick=()=>{
   curTab=t.dataset.tab;$$('.tab').forEach(x=>x.classList.toggle('on',x===t));
   $('#caseForm').classList.toggle('hidden',curTab==='search'||curTab==='wiring');$('#searchPane').classList.toggle('hidden',curTab!=='search');$('#wiringPane').classList.toggle('hidden',curTab!=='wiring');
-  const top={describe:'#describeCard',fault:'#faultCard',cmc:'#cmcCard'}[curTab];
-  if(top){const order=[top,...['#describeCard','#faultCard','#cmcCard'].filter(x=>x!==top)];const cf=$('#caseForm');for(const id of order.slice().reverse())cf.prepend($(id))}
-  if(curTab==='describe')$('#descText').focus();if(curTab==='cmc')$('#cmcInput').focus();
+  const top={describe:'#describeCard',fault:'#faultCard'}[curTab];
+  if(top){const order=[top,...['#describeCard','#faultCard'].filter(x=>x!==top)];const cf=$('#caseForm');for(const id of order.slice().reverse())cf.prepend($(id))}
+  if(curTab==='describe')$('#descText').focus();if(curTab==='fault')$('#faultInput').focus();
   if(curTab==='search')$('#sQuery').focus();if(curTab==='wiring')$('#wQuery').focus();
 });
 const val=id=>$(id).value.trim();
@@ -1369,7 +1362,7 @@ $('#btnStart').onclick=async()=>{
   showChat();renderCase();saveCase();runAgent();
 };
 function flash(btn,msg){const o=btn.textContent;btn.textContent=msg;btn.disabled=true;setTimeout(()=>{btn.textContent=o;btn.disabled=false},1600)}
-function resetForm(){selFaults=[];renderFaultChips();selCmc=[];renderCmcChips();$('#cmcInput').value='';['#descText','#fAlt','#fSpd','#fOat','#fCabAlt','#fDp','#fRate','#fOther','#fSn','#fReg','#fTT','#fCyc','#fEngHrs','#fEngCyc','#fApuHrs','#fRecent','#fDone','#faultInput'].forEach(i=>$(i).value='');prefillAircraft();$('#timesDetails').open=false;['#fPhase','#fBehavior','#fSide'].forEach(i=>$(i).value='');$('#readings').innerHTML='';$('#moreDetails').open=false}
+function resetForm(){selFaults=[];renderFaultChips();selCmc=[];renderCmcChips();['#descText','#fAlt','#fSpd','#fOat','#fCabAlt','#fDp','#fRate','#fOther','#fSn','#fReg','#fTT','#fCyc','#fEngHrs','#fEngCyc','#fApuHrs','#fRecent','#fDone','#faultInput'].forEach(i=>$(i).value='');prefillAircraft();$('#timesDetails').open=false;['#fPhase','#fBehavior','#fSide'].forEach(i=>$(i).value='');$('#readings').innerHTML='';$('#moreDetails').open=false}
 
 /* ═════════════════ CHAT ═════════════════ */
 function showChat(){$('#intakeView').classList.add('hidden');$('#chatView').classList.remove('hidden')}
