@@ -222,12 +222,12 @@ mark{background:var(--mark-bg);color:var(--amber-glow);border-radius:2px}
             <div class="field"><label>Phase of flight</label>
               <select id="fPhase">
                 <option value="">—</option>
-                <option>Ground — power up / BIT</option><option>Ground — APU running</option><option>Ground — engine start</option>
+                <option>Ground — Power Up / BIT</option><option>Ground — APU Running</option><option>Ground — Engine Start</option>
                 <option>Taxi</option><option>Takeoff</option><option>Climb</option><option>Cruise</option><option>Descent</option>
-                <option>Approach</option><option>Landing / rollout</option><option>Shutdown / post-flight</option><option>Maintenance test / ground run</option>
+                <option>Approach</option><option>Landing / Rollout</option><option>Shutdown / Post-Flight</option><option>Maintenance Test / Ground Run</option>
               </select></div>
             <div class="field"><label>Fault behavior</label>
-              <select id="fBehavior"><option value="">—</option><option>Constant / hard fault</option><option>Intermittent</option><option>One-time, cleared</option><option>Latched until reset</option></select></div>
+              <select id="fBehavior"><option value="">—</option><option>Constant / Hard Fault</option><option>Intermittent</option><option>One-Time, Cleared</option><option>Latched Until Reset</option></select></div>
           </div>
           <div class="grid3">
             <div class="field"><label>Altitude (ft)</label><input id="fAlt" inputmode="numeric" placeholder="45000"></div>
@@ -263,7 +263,7 @@ mark{background:var(--mark-bg);color:var(--amber-glow);border-radius:2px}
           <h3>Wiring lookup (iWDM)</h3>
           <div class="field"><input id="wQuery" placeholder="Designator (006A5P1), wire (1H322), P/N or description" autocomplete="off" autocapitalize="characters" spellcheck="false"></div>
           <div class="grid2">
-            <div class="field"><select id="wMode"><option value="comp">Find component</option><option value="pins">Connector pin-out</option><option value="wire">Trace wire number</option></select></div>
+            <div class="field"><select id="wMode"><option value="comp">Find Component</option><option value="pins">Connector Pin-Out</option><option value="wire">Trace Wire Number</option></select></div>
             <div class="field"><button class="btn2" id="wGo" style="width:100%">Look up</button></div>
           </div>
           <div class="hint">From the G600 iWDM. Tap a diagram to open the schematic. No AI or API key needed.</div>
@@ -277,7 +277,7 @@ mark{background:var(--mark-bg);color:var(--amber-glow);border-radius:2px}
           <h3>Search all manuals</h3>
           <div class="field"><input id="sQuery" placeholder="Words, part names, designators (171A7P1), ATA numbers…" autocomplete="off"></div>
           <div class="grid2">
-            <div class="field"><label>ATA chapter</label><select id="sChap"><option value="">Auto (best match)</option></select></div>
+            <div class="field"><label>ATA chapter</label><select id="sChap"><option value="">Auto (Best Match)</option></select></div>
             <div class="field"><label>&nbsp;</label><button class="btn2" id="sGo" style="width:100%">Search</button></div>
           </div>
           <div class="mchk" id="sManuals"></div>
@@ -307,7 +307,7 @@ mark{background:var(--mark-bg);color:var(--amber-glow);border-radius:2px}
 <script>
 'use strict';
 /* ═════════════════ CONFIG & STORAGE ═════════════════ */
-const MODELS=[['claude-opus-5-5','Claude Opus 5.5 — most rigorous'],['claude-sonnet-5-5','Claude Sonnet 5.5 — faster, cheaper'],['claude-haiku-5-5','Claude Haiku 5.5 — quickest']];
+const MODELS=[['claude-opus-5-5','Claude Opus 5.5 — Most Rigorous'],['claude-sonnet-5-5','Claude Sonnet 5.5 — Faster, Cheaper'],['claude-haiku-5-5','Claude Haiku 5.5 — Quickest']];
 const DEFAULTS={anthropicKey:'',githubToken:'',dataRepo:'Avio-AI/G600-Manual-Database',dataBranch:'main',dataMode:'github',dataUrl:'./data/',model:'claude-opus-5-5',thinking:true,remember:true,theme:'auto'};
 const store={
   get(k,d){try{const v=localStorage.getItem(k)??sessionStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},
@@ -920,11 +920,11 @@ function openSettings(note){
   showModal('SETTINGS',`
   ${note?`<div class="errbox" style="margin-bottom:12px;color:var(--amber);border-color:var(--amber-dim);background:var(--warn-bg)">${esc(note)}</div>`:''}
   <div class="field"><label>Anthropic API key</label><input id="stKey" type="password" value="${esc(cfg.anthropicKey)}" placeholder="sk-ant-…" autocomplete="off"></div>
-  <div class="field"><label>Theme</label><select id="stTheme"><option value="auto" ${(cfg.theme||'auto')==='auto'?'selected':''}>Auto — follow phone</option><option value="light" ${cfg.theme==='light'?'selected':''}>Light (bright hangar / ramp)</option><option value="dark" ${cfg.theme==='dark'?'selected':''}>Dark (night / cockpit)</option></select></div>
+  <div class="field"><label>Theme</label><select id="stTheme"><option value="auto" ${(cfg.theme||'auto')==='auto'?'selected':''}>Auto — Follow Phone</option><option value="light" ${cfg.theme==='light'?'selected':''}>Light (Bright Hangar / Ramp)</option><option value="dark" ${cfg.theme==='dark'?'selected':''}>Dark (Night / Cockpit)</option></select></div>
   <div class="field"><label>Model</label><select id="stModel">${MODELS.map(([v,l])=>`<option value="${v}" ${cfg.model===v?'selected':''}>${l}</option>`).join('')}</select></div>
   <div class="field"><label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;font-family:var(--sans);font-size:14px;color:var(--text)"><input type="checkbox" id="stThink" style="width:auto" ${cfg.thinking?'checked':''}> Extended reasoning (slower, more thorough)</label></div>
   <hr style="border:none;border-top:1px solid var(--border);margin:14px 0">
-  <div class="field"><label>Manual data source</label><select id="stMode"><option value="github" ${cfg.dataMode==='github'?'selected':''}>Private GitHub repo</option><option value="url" ${cfg.dataMode==='url'?'selected':''}>URL / local folder</option></select></div>
+  <div class="field"><label>Manual data source</label><select id="stMode"><option value="github" ${cfg.dataMode==='github'?'selected':''}>Private GitHub Repo</option><option value="url" ${cfg.dataMode==='url'?'selected':''}>URL / Local Folder</option></select></div>
   <div id="stGh">
     <div class="grid2"><div class="field"><label>Data repo (owner/name)</label><input id="stRepo" value="${esc(cfg.dataRepo)}"></div><div class="field"><label>Branch</label><input id="stBranch" value="${esc(cfg.dataBranch)}"></div></div>
     <div class="field"><label>GitHub token (read-only)</label><input id="stTok" type="password" value="${esc(cfg.githubToken)}" placeholder="github_pat_…" autocomplete="off">
@@ -1094,10 +1094,12 @@ $('#btnExport').onclick=()=>{
 $('#btnSettings').onclick=()=>openSettings();
 
 /* ═════════════════ DIRECT SEARCH ═════════════════ */
+const ACR=new Set(['AC','DC','APU','CAS','CMC','EER','FMS','GPS','IRS','ADS','RAT','HF','VHF','UHF','ELT','TCAS','EGPWS','HUD','EVS','SVS','CPCS','ATA','LRU','II','III','IV']);
+const tc=s=>String(s).toLowerCase().replace(/[a-z0-9]+(?:'[a-z]+)?/g,w=>ACR.has(w.toUpperCase())?w.toUpperCase():w.charAt(0).toUpperCase()+w.slice(1));
 function fillChapterSelect(){
   const names={};
-  for(const d of DATA.catalog)if(d.m==='SDM'&&d.ata&&/-00-00$/.test(d.ata)){const t=d.title.split('—')[0].trim();if(t&&!names[d.ata.slice(0,2)])names[d.ata.slice(0,2)]=t.charAt(0)+t.slice(1).toLowerCase()}
-  $('#sChap').innerHTML='<option value="">Auto (best match)</option>'+Object.keys(DATA.manifest.shards).sort().map(k=>`<option value="${k}">${k==='fsi'?'FSI overview books (avionics, synoptics, EER, schematics)':k==='gen'?'General / front matter / CB list':'ATA '+k+(names[k]?' — '+esc(names[k]):'')}</option>`).join('');
+  for(const d of DATA.catalog)if(d.m==='SDM'&&d.ata&&/-00-00$/.test(d.ata)){const t=d.title.split('—')[0].trim();if(t&&!names[d.ata.slice(0,2)])names[d.ata.slice(0,2)]=tc(t)}
+  $('#sChap').innerHTML='<option value="">Auto (Best Match)</option>'+Object.keys(DATA.manifest.shards).sort().map(k=>`<option value="${k}">${k==='fsi'?'FSI Overview Books (Avionics, Synoptics, EER, Schematics)':k==='gen'?'General / Front Matter / CB List':'ATA '+k+(names[k]?' — '+esc(names[k]):'')}</option>`).join('');
   $('#sManuals').innerHTML=MANS.map(m=>`<label><input type="checkbox" value="${m}" checked> ${m}</label>`).join('');
 }
 async function doSearch(){
