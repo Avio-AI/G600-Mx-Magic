@@ -183,7 +183,7 @@ mark{background:var(--mark-bg);color:var(--amber-glow);border-radius:2px}
       <div class="dot" id="dataDot" title="Manual data"></div>
       <button class="iconbtn" id="btnNew" title="New case">＋</button>
       <button class="iconbtn" id="btnCases" title="Recent cases">☰</button>
-      <button class="iconbtn" id="btnExport" title="Export case">⤓</button>
+      <button class="iconbtn" id="btnExport" title="Export case (PDF)">⤓</button>
       <button class="iconbtn" id="btnTheme" title="Theme" aria-label="Theme"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor"/></svg></button>
       <button class="iconbtn" id="btnSettings" title="Settings">⚙</button>
     </div>
@@ -194,13 +194,18 @@ mark{background:var(--mark-bg);color:var(--amber-glow);border-radius:2px}
     <!-- INTAKE -->
     <section class="view" id="intakeView">
       <div class="tabs">
-        <button class="tab on" data-tab="fault">CAS</button>
-        <button class="tab" data-tab="describe">Describe</button>
+        <button class="tab on" data-tab="describe">Describe</button>
+        <button class="tab" data-tab="fault">CAS</button>
         <button class="tab" data-tab="search">Search</button>
         <button class="tab" data-tab="wiring">Wiring</button>
       </div>
 
       <div id="caseForm">
+        <div class="card" id="describeCard">
+          <h3>What's happening</h3>
+          <textarea id="descText" rows="5" placeholder="Describe the squawk in your own words: what the crew saw, when it happened, what it did, what changed. E.g. 'Cabin altitude crept up to 9,200 ft in cruise at FL510, CPCS Maintenance Required posted briefly then cleared. Outflow valve looked full closed on the synoptic.'"></textarea>
+        </div>
+
         <div class="card" id="faultCard">
           <h3>CAS message</h3>
           <div class="ac">
@@ -211,13 +216,12 @@ mark{background:var(--mark-bg);color:var(--amber-glow);border-radius:2px}
           <div class="hint" id="faultHint">Searches the G500/G600 CAS message tables (message, color, trigger logic). Add every message that's showing, not just the first. Put maintenance messages / CMC fault text in the description or history fields.</div>
         </div>
 
-        <div class="card" id="describeCard">
-          <h3>What's happening</h3>
-          <textarea id="descText" rows="5" placeholder="Describe the squawk in your own words: what the crew saw, when it happened, what it did, what changed. E.g. 'Cabin altitude crept up to 9,200 ft in cruise at FL510, CPCS Maintenance Required posted briefly then cleared. Outflow valve looked full closed on the synoptic.'"></textarea>
-        </div>
-
         <div class="card">
           <h3>Flight phase &amp; conditions</h3>
+          <div class="grid2">
+            <div class="field"><label>Registration</label><input id="fReg" placeholder="N1KE" autocapitalize="characters" autocomplete="off" spellcheck="false"></div>
+            <div class="field"><label>Serial number</label><input id="fSn" placeholder="731xx" inputmode="numeric" autocomplete="off"></div>
+          </div>
           <div class="grid2">
             <div class="field"><label>Phase of flight</label>
               <select id="fPhase">
@@ -237,6 +241,17 @@ mark{background:var(--mark-bg);color:var(--amber-glow);border-radius:2px}
             <div class="field"><label>Cabin ΔP (psi)</label><input id="fDp" inputmode="decimal" placeholder="10.1"></div>
             <div class="field"><label>Cabin rate (fpm)</label><input id="fRate" inputmode="numeric" placeholder="+300"></div>
           </div>
+          <details class="more" id="timesDetails">
+            <summary>▸ Aircraft &amp; engine times (optional)</summary>
+            <div class="grid2">
+              <div class="field"><label>Aircraft total time</label><input id="fTT" inputmode="decimal" placeholder="hrs, e.g. 4,312.6"></div>
+              <div class="field"><label>Aircraft cycles</label><input id="fCyc" inputmode="numeric" placeholder="e.g. 2,145"></div>
+              <div class="field"><label>Engine hours</label><input id="fEngHrs" placeholder="e.g. L 4,301 / R 4,298"></div>
+              <div class="field"><label>Engine cycles</label><input id="fEngCyc" placeholder="e.g. L 2,140 / R 2,139"></div>
+              <div class="field"><label>APU hours</label><input id="fApuHrs" inputmode="decimal" placeholder="e.g. 1,877"></div>
+            </div>
+            <div class="hint" style="margin:-4px 0 6px">Any times entered are added to the PDF header.</div>
+          </details>
           <details class="more" id="moreDetails">
             <summary>▸ Observed readings, other messages, history</summary>
             <label>Observed readings</label>
@@ -244,10 +259,7 @@ mark{background:var(--mark-bg);color:var(--amber-glow);border-radius:2px}
             <div id="readings"></div>
             <button class="btn2 small" id="addReading" type="button">＋ Add reading</button>
             <div class="field" style="margin-top:12px"><label>Maintenance messages / CMC history (free text)</label><input id="fOther" placeholder="e.g. CMC shows CPCU 1 fault on last 3 legs; PlaneConnect alert"></div>
-            <div class="grid2">
-              <div class="field"><label>Aircraft s/n</label><input id="fSn" placeholder="731xx"></div>
-              <div class="field"><label>Engine / side</label><select id="fSide"><option value="">—</option><option>Left</option><option>Right</option><option>Both</option><option>APU</option><option>N/A</option></select></div>
-            </div>
+            <div class="field" style="max-width:50%"><label>Engine / side</label><select id="fSide"><option value="">—</option><option>Left</option><option>Right</option><option>Both</option><option>APU</option><option>N/A</option></select></div>
             <div class="field"><label>Recent maintenance</label><input id="fRecent" placeholder="e.g. Precooler replaced 12 FH ago, pylon panels off for inspection"></div>
             <div class="field"><label>Already checked / done</label><textarea id="fDone" rows="3" placeholder="e.g. CPCU BIT passed. Connector 006A5P1 inspected, no corrosion."></textarea></div>
           </details>
@@ -1005,7 +1017,7 @@ $('#readingChips').innerHTML=READING_PRESETS.map(([p,u])=>`<button type="button"
 $$('#readingChips .qchip').forEach(b=>b.onclick=()=>{$('#moreDetails').open=true;addReading(b.dataset.p,'',b.dataset.u)});
 $('#addReading').onclick=()=>addReading();
 
-let curTab='fault';
+let curTab='describe';
 $$('.tab').forEach(t=>t.onclick=()=>{
   curTab=t.dataset.tab;$$('.tab').forEach(x=>x.classList.toggle('on',x===t));
   $('#caseForm').classList.toggle('hidden',curTab==='search'||curTab==='wiring');$('#searchPane').classList.toggle('hidden',curTab!=='search');$('#wiringPane').classList.toggle('hidden',curTab!=='wiring');
@@ -1015,12 +1027,13 @@ $$('.tab').forEach(t=>t.onclick=()=>{
 });
 const val=id=>$(id).value.trim();
 function collectForm(){
-  return {faults:selFaults,desc:val('#descText'),phase:val('#fPhase'),behavior:val('#fBehavior'),alt:val('#fAlt'),spd:val('#fSpd'),oat:val('#fOat'),cabAlt:val('#fCabAlt'),dp:val('#fDp'),rate:val('#fRate'),other:val('#fOther'),sn:val('#fSn'),side:val('#fSide'),recent:val('#fRecent'),done:val('#fDone'),
+  return {faults:selFaults,desc:val('#descText'),phase:val('#fPhase'),behavior:val('#fBehavior'),alt:val('#fAlt'),spd:val('#fSpd'),oat:val('#fOat'),cabAlt:val('#fCabAlt'),dp:val('#fDp'),rate:val('#fRate'),other:val('#fOther'),sn:val('#fSn'),reg:val('#fReg').toUpperCase(),tt:val('#fTT'),cyc:val('#fCyc'),engHrs:val('#fEngHrs'),engCyc:val('#fEngCyc'),apuHrs:val('#fApuHrs'),side:val('#fSide'),recent:val('#fRecent'),done:val('#fDone'),
     readings:$$('#readings .rrow').map(r=>[...r.querySelectorAll('input')].map(i=>i.value.trim())).filter(r=>r[0]||r[1])};
 }
 function caseText(f){
   const L=['NEW TROUBLESHOOTING CASE'];
-  if(f.sn)L.push(`Aircraft: G600 s/n ${f.sn}`);
+  if(f.reg||f.sn)L.push(`Aircraft: G600${f.reg?' '+f.reg:''}${f.sn?' s/n '+f.sn:''}`);
+  {const tl=timesLine(f);if(tl)L.push(`Times: ${tl}`)}
   if(f.faults.length){L.push('CAS messages:');f.faults.forEach(x=>L.push(`  • ${x.msg}${x.color?` (${x.color})`:''}${x.ata?` — ATA ${x.ata}`:''}${x.cause?` — FSI logic: ${x.cause} [${x.cite}]`:''}${x.custom?' (typed; not matched in CAS tables)':''}`))}
   if(f.desc)L.push(`Description: ${f.desc}`);
   const c=[f.phase&&`Phase: ${f.phase}`,f.behavior&&`Behavior: ${f.behavior}`,f.side&&`Side: ${f.side}`,f.alt&&`Altitude: ${f.alt} ft`,f.spd&&`Speed: ${f.spd}`,f.oat&&`SAT/OAT: ${f.oat} °C`,f.cabAlt&&`Cabin alt: ${f.cabAlt} ft`,f.dp&&`Cabin ΔP: ${f.dp} psi`,f.rate&&`Cabin rate: ${f.rate} fpm`].filter(Boolean);
@@ -1036,6 +1049,7 @@ $('#btnStart').onclick=async()=>{
   if(!f.faults.length&&!f.desc){$('#faultInput').focus();flash($('#btnStart'),'ENTER A MESSAGE OR DESCRIPTION');return}
   if(!DATA.ready){openSettings('Connect the manual data source first.');return}
   if(!cfg.anthropicKey){openSettings('Add your Anthropic API key to start troubleshooting.');return}
+  if(f.reg||f.sn)store.set(LAST_AC_KEY,{reg:f.reg,sn:f.sn});
   const text=caseText(f);
   f.faults.forEach(x=>{if(x.cite&&x.doc!=null)registerSource({cite:x.cite,doc_id:x.doc,pdf_page:x.page})});
   const title=(f.faults[0]?.msg||f.desc).slice(0,48);
@@ -1043,7 +1057,7 @@ $('#btnStart').onclick=async()=>{
   showChat();renderCase();saveCase();runAgent();
 };
 function flash(btn,msg){const o=btn.textContent;btn.textContent=msg;btn.disabled=true;setTimeout(()=>{btn.textContent=o;btn.disabled=false},1600)}
-function resetForm(){selFaults=[];renderFaultChips();['#descText','#fAlt','#fSpd','#fOat','#fCabAlt','#fDp','#fRate','#fOther','#fSn','#fRecent','#fDone','#faultInput'].forEach(i=>$(i).value='');['#fPhase','#fBehavior','#fSide'].forEach(i=>$(i).value='');$('#readings').innerHTML='';$('#moreDetails').open=false}
+function resetForm(){selFaults=[];renderFaultChips();['#descText','#fAlt','#fSpd','#fOat','#fCabAlt','#fDp','#fRate','#fOther','#fSn','#fReg','#fTT','#fCyc','#fEngHrs','#fEngCyc','#fApuHrs','#fRecent','#fDone','#faultInput'].forEach(i=>$(i).value='');prefillAircraft();$('#timesDetails').open=false;['#fPhase','#fBehavior','#fSide'].forEach(i=>$(i).value='');$('#readings').innerHTML='';$('#moreDetails').open=false}
 
 /* ═════════════════ CHAT ═════════════════ */
 function showChat(){$('#intakeView').classList.add('hidden');$('#chatView').classList.remove('hidden')}
@@ -1081,16 +1095,161 @@ $('#btnCases').onclick=()=>{
   $$('.caselist [data-del]').forEach(b=>b.onclick=()=>{const cs=loadCases().filter(c=>c.id!==b.dataset.del);try{localStorage.setItem('g600ts_cases',JSON.stringify(cs))}catch(e){}if(CASE&&CASE.id===b.dataset.del){CASE=null;showIntake()}$('#btnCases').onclick()});
 };
 $('#btnNew').onclick=()=>{if(BUSY)ABORT?.abort();CASE=null;try{localStorage.removeItem('g600ts_current')}catch(e){}resetForm();showIntake()};
-$('#btnExport').onclick=()=>{
-  if(!CASE){showModal('EXPORT','<div class="kv">Open a case first.</div>');return}
-  let out=`# G600 Troubleshooting Case — ${CASE.title}\nOpened ${new Date(CASE.created).toLocaleString()} · model ${cfg.model}\n\n`;
+const APPNAME='G600',SN_HINT='731xx',LAST_AC_KEY='g600ts_lastac';
+function prefillAircraft(){const l=store.get(LAST_AC_KEY,null);if(l){if(!$('#fReg').value)$('#fReg').value=l.reg||'';if(!$('#fSn').value)$('#fSn').value=l.sn||''}}
+prefillAircraft();
+/* ═════════════════ PDF EXPORT ═════════════════ */
+const PDFLIB='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+const LATO={normal:'https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/lato/Lato-Regular.ttf',bold:'https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/lato/Lato-Bold.ttf'};
+let _pdfReady=null;
+function loadScript(src){return new Promise((ok,no)=>{const s=document.createElement('script');s.src=src;s.onload=ok;s.onerror=()=>no(new Error('Could not load the PDF library (check connection).'));document.head.appendChild(s)})}
+async function ttfB64(url){const r=await fetch(url);if(!r.ok)throw new Error('font');const b=new Uint8Array(await r.arrayBuffer());let s='';for(let i=0;i<b.length;i+=0x8000)s+=String.fromCharCode.apply(null,b.subarray(i,i+0x8000));return btoa(s)}
+function pdfReady(){
+  if(!_pdfReady)_pdfReady=(async()=>{
+    if(!window.jspdf)await loadScript(PDFLIB);
+    let fonts=null;try{fonts=await Promise.all([ttfB64(LATO.normal),ttfB64(LATO.bold)])}catch(e){fonts=null}
+    return {fonts};
+  })().catch(e=>{_pdfReady=null;throw e});
+  return _pdfReady;
+}
+const PDF_SUBS=[[/Δ/g,'Delta '],[/[▸►▶]/g,'>'],[/[◆◇◈]/g,'-'],[/→/g,'->'],[/←/g,'<-'],[/[✔✓]/g,'OK'],[/[✖✗✕]/g,'X'],[/≈/g,'~'],[/ /g,' '],[/[​-‏️]/g,''],[/[^\u0009\u000a -ſ–—‘’“”•…°±×≤≥≠™]/g,'']];
+const pclean=s=>PDF_SUBS.reduce((a,[r,b])=>a.replace(r,b),String(s??''));
+function timesLine(f){
+  const t=[[f.tt,'A/C TT','hrs'],[f.cyc,'A/C Cycles',''],[f.engHrs,'Eng Hrs',''],[f.engCyc,'Eng Cycles',''],[f.apuHrs,'APU Hrs','']].filter(x=>x[0]);
+  return t.map(([v,l,u])=>`${l} ${v}${u&&/^[\d.,]+$/.test(v)?' '+u:''}`).join('   ·   ');
+}
+async function buildPdf(meta){
+  const {fonts}=await pdfReady();
+  const {jsPDF}=window.jspdf;const doc=new jsPDF({unit:'pt',format:'letter'});
+  let SANS='helvetica';
+  if(fonts){doc.addFileToVFS('Lato-Regular.ttf',fonts[0]);doc.addFont('Lato-Regular.ttf','Lato','normal');doc.addFileToVFS('Lato-Bold.ttf',fonts[1]);doc.addFont('Lato-Bold.ttf','Lato','bold');SANS='Lato'}
+  const W=doc.internal.pageSize.getWidth(),H=doc.internal.pageSize.getHeight(),M=48,CW=W-2*M;
+  const C={ink:[21,33,44],dim:[90,104,118],amber:[163,95,0],teal:[0,104,122],red:[196,35,31],rule:[200,210,220],fill:[240,244,247]};
+  const hdrH=meta.times?62:48;let y=0;
+  const font=(st='normal',sz=10,col=C.ink)=>{doc.setFont(SANS,st);doc.setFontSize(sz);doc.setTextColor(...col)};
+  function header(){
+    font('bold',9,C.amber);doc.text(pclean(`${APPNAME} TROUBLESHOOTING REPORT`),M,30);
+    font('bold',11,C.ink);const id=pclean(`${meta.reg||'Reg —'}   ·   S/N ${meta.sn||'—'}`);doc.text(id,W-M,30,{align:'right'});
+    if(meta.times){font('normal',8.5,C.dim);doc.text(pclean(meta.times),W-M,44,{align:'right'})}
+    doc.setDrawColor(...C.rule);doc.setLineWidth(.8);doc.line(M,hdrH-8,W-M,hdrH-8);
+    y=hdrH+10;
+  }
+  function newPage(){doc.addPage();header()}
+  const need=h=>{if(y+h>H-46)newPage()};
+  // rich text: **bold**, `code`, [cite]
+  function runs(t){const out=[];const rx=/(\*\*[^*]+\*\*|`[^`]+`|\[[A-Za-z][^\]\n]{1,80}\])/g;let i=0,m;
+    while((m=rx.exec(t))){if(m.index>i)out.push({t:t.slice(i,m.index)});const v=m[0];
+      if(v.startsWith('**'))out.push({t:v.slice(2,-2),b:1});else if(v.startsWith('`'))out.push({t:v.slice(1,-1),c:1});else out.push({t:v,cite:1});i=m.index+v.length}
+    if(i<t.length)out.push({t:t.slice(i)});return out.map(r=>({...r,t:pclean(r.t)}))}
+  function para(text,{size=10,indent=0,lead=0,color=C.ink,bullet=null,bold=false,lh=1.38}={}){
+    const x0=M+indent,maxW=CW-indent;const lineH=size*lh;const words=[];
+    for(const r of runs(text))for(const w of r.t.split(/(\s+)/))if(w)words.push({...r,t:w});
+    let lines=[[]],lw=0;
+    for(const w of words){font(w.b||bold?'bold':'normal',size);const ww=doc.getTextWidth(w.t);
+      if(/^\s+$/.test(w.t)){if(lw>0){lines[lines.length-1].push(w);lw+=ww}continue}
+      if(lw+ww>maxW&&lw>0){while(lines[lines.length-1].length&&/^\s+$/.test(lines[lines.length-1].at(-1).t))lines[lines.length-1].pop();lines.push([]);lw=0}
+      if(ww>maxW){let s=w.t;while(s){let k=s.length;while(k>1&&doc.getTextWidth(s.slice(0,k))>maxW-lw)k--;lines[lines.length-1].push({...w,t:s.slice(0,k)});s=s.slice(k);if(s){lines.push([]);lw=0}else lw+=doc.getTextWidth(lines[lines.length-1].at(-1).t)}continue}
+      lines[lines.length-1].push(w);lw+=ww}
+    y+=lead;
+    lines.forEach((ln,li)=>{need(lineH);let x=x0;
+      if(li===0&&bullet){font('normal',size,C.dim);doc.text(bullet,x0-12,y+size*.9,{align:'right'})}
+      for(const w of ln){font(w.b||bold?'bold':'normal',size,w.cite?C.teal:w.c?C.teal:color);doc.text(w.t,x,y+size*.9);x+=doc.getTextWidth(w.t)}
+      y+=lineH});
+  }
+  function table(rows){
+    const n=Math.max(...rows.map(r=>r.length));const sz=8.5,pad=4,lh=sz*1.3;
+    const len=Array(n).fill(4);rows.forEach(r=>r.forEach((c,i)=>len[i]=Math.max(len[i],Math.min(40,pclean(c).length))));
+    const tot=len.reduce((a,b)=>a+b,0);const cw=len.map(l=>CW*l/tot);
+    rows.forEach((r,ri)=>{
+      const cells=r.map((c,i)=>{font(ri===0?'bold':'normal',sz);return doc.splitTextToSize(pclean(c).replace(/\*\*/g,''),cw[i]-2*pad)});
+      const h=Math.max(...cells.map(c=>c.length))*lh+2*pad;need(h);let x=M;
+      if(ri===0){doc.setFillColor(...C.fill);doc.rect(M,y,CW,h,'F')}
+      cells.forEach((c,i)=>{font(ri===0?'bold':'normal',sz,ri===0?C.teal:C.ink);doc.text(c,x+pad,y+pad+sz*.9);doc.setDrawColor(...C.rule);doc.setLineWidth(.5);doc.rect(x,y,cw[i],h);x+=cw[i]});
+      y+=h});
+    y+=6;
+  }
+  function markdown(src){
+    const L=String(src||'').replace(/\r/g,'').split('\n');let i=0;
+    while(i<L.length){let l=L[i];
+      if(/^```/.test(l)){i++;const code=[];while(i<L.length&&!/^```/.test(L[i]))code.push(L[i++]);i++;
+        doc.setFont('courier','normal');doc.setFontSize(8.5);const lines=doc.splitTextToSize(pclean(code.join('\n')),CW-16);
+        for(const ln of lines){need(11);doc.setFillColor(...C.fill);doc.rect(M,y-1,CW,11,'F');doc.setFont('courier','normal');doc.setFontSize(8.5);doc.setTextColor(...C.ink);doc.text(ln,M+8,y+8);y+=11}y+=6;continue}
+      if(/^\s*\|.*\|\s*$/.test(l)&&i+1<L.length&&/^\s*\|?\s*:?-{2,}/.test(L[i+1])){const row=r=>r.trim().replace(/^\||\|$/g,'').split('|').map(c=>c.trim());const rows=[row(l)];i+=2;while(i<L.length&&/^\s*\|.*\|\s*$/.test(L[i]))rows.push(row(L[i++]));table(rows);continue}
+      let m;
+      if((m=l.match(/^(#{1,4})\s+(.*)/))){need(30);y+=6;font('bold',10.5,C.amber);doc.text(pclean(m[2].replace(/\*\*/g,'')).toUpperCase(),M,y+10);y+=17;i++;continue}
+      if(/^\s*(---|\*\*\*)\s*$/.test(l)){need(10);doc.setDrawColor(...C.rule);doc.line(M,y+4,W-M,y+4);y+=10;i++;continue}
+      if((m=l.match(/^>\s?(.*)/))){const st=y;para(m[1],{indent:10,color:C.red});doc.setDrawColor(...C.red);doc.setLineWidth(2);doc.line(M+2,Math.max(st,hdrH+10),M+2,y-3);doc.setLineWidth(.8);i++;continue}
+      if((m=l.match(/^(\s*)([-*•]|\d+[.)])\s+(.*)/))){const d=Math.floor(m[1].replace(/\t/g,'    ').length/2);para(m[3],{indent:16+d*14,bullet:/\d/.test(m[2])?m[2]:'•',lead:1});i++;continue}
+      if(!l.trim()){y+=4;i++;continue}
+      let p=l;i++;while(i<L.length&&L[i].trim()&&!/^(#{1,4}\s|```|\s*([-*•]|\d+[.)])\s|>|\s*\|)/.test(L[i]))p+=' '+L[i++].trim();
+      para(p,{lead:1});
+    }
+  }
+  function label(t,col){need(28);y+=8;font('bold',8.5,col);doc.text(t,M,y+8);doc.setDrawColor(...col);doc.setLineWidth(.6);doc.line(M,y+12,M+CW,y+12);y+=18}
+  // ── page 1 summary block
+  header();
+  font('bold',15,C.ink);doc.text(doc.splitTextToSize(pclean(meta.title),CW),M,y+14);y+=22*Math.min(2,doc.splitTextToSize(pclean(meta.title),CW).length);
+  font('normal',9,C.dim);doc.text(pclean(`${APPNAME} · Registration ${meta.reg||'—'} · S/N ${meta.sn||'—'} · Opened ${meta.opened} · Exported ${new Date().toLocaleString()} · ${meta.model}`),M,y+6,{maxWidth:CW});y+=20;
+  if(meta.times){doc.setFillColor(...C.fill);doc.rect(M,y,CW,22,'F');font('bold',9,C.ink);doc.text(pclean(meta.times),M+8,y+14.5);y+=32}
+  // ── conversation
+  let lastRole=null;
+  for(const m of CASE.msgs){
+    if(m.role==='user'){
+      const t=m.content.filter(b=>b.type==='text'&&!b.text.startsWith('<<CONTEXT>>')&&!b.text.startsWith('Tool budget reached')).map(b=>b.text).join('\n');
+      if(!t)continue;label('TECHNICIAN',C.teal);lastRole='user';
+      t.replace(/^NEW TROUBLESHOOTING CASE\n?/,'').split('\n').forEach(ln=>{if(!ln.trim()){y+=4;return}const b=ln.match(/^\s+•\s*(.*)/);b?para(b[1],{indent:16,bullet:'•'}):para(ln)});
+    }else{
+      const tools=m.content.filter(b=>b.type==='tool_use').map(b=>toolLabel(b));
+      const txt=m.content.filter(b=>b.type==='text'&&b.text).map(b=>b.text).join('\n\n');
+      if(!tools.length&&!txt)continue;
+      if(lastRole!=='assistant'){label('ASSISTANT',C.amber);lastRole='assistant'}
+      if(tools.length)para('Manual lookups: '+tools.join('  ·  '),{size:8,color:C.dim,lead:0});
+      if(txt)markdown(txt);
+    }
+  }
+  y+=10;need(30);font('normal',8,C.dim);doc.text(doc.splitTextToSize('Troubleshooting aid output. Citations refer to the indexed maintenance data. Verify against the current revision of the approved maintenance data before any maintenance or return-to-service action.',CW),M,y+8);
+  const n=doc.getNumberOfPages();for(let p=1;p<=n;p++){doc.setPage(p);font('normal',8,C.dim);doc.text(pclean(`${meta.reg||APPNAME} · S/N ${meta.sn||'—'} · ${meta.title}`).slice(0,90),M,H-26);doc.text(`Page ${p} of ${n}`,W-M,H-26,{align:'right'})}
+  return doc.output('blob');
+}
+function exportMeta(){
+  const f=CASE.form||{};
+  return {reg:(f.reg||'').toUpperCase(),sn:f.sn||'',times:timesLine(f),title:CASE.title||'Troubleshooting case',opened:new Date(CASE.created).toLocaleString(),model:cfg.model};
+}
+function pdfName(meta){const d=new Date(CASE.created).toISOString().slice(0,10);return `${[meta.reg||APPNAME,meta.sn,d,(meta.title||'case').replace(/[^A-Za-z0-9]+/g,'-').slice(0,32)].filter(Boolean).join('_')}.pdf`}
+function exportMarkdown(){
+  const meta=exportMeta();
+  let out=`# ${APPNAME} Troubleshooting Case — ${CASE.title}\n**Registration:** ${meta.reg||'—'} · **S/N:** ${meta.sn||'—'}${meta.times?`\n**Times:** ${meta.times}`:''}\nOpened ${meta.opened} · model ${cfg.model}\n\n`;
   for(const m of CASE.msgs){
     if(m.role==='user'){const t=m.content.filter(b=>b.type==='text'&&!b.text.startsWith('<<CONTEXT>>')).map(b=>b.text).join('\n');if(t)out+=`## Technician\n${t}\n\n`}
     else{const t=m.content.filter(b=>b.type==='text').map(b=>b.text).join('\n');const tools=m.content.filter(b=>b.type==='tool_use').map(b=>'- '+toolLabel(b)).join('\n');if(tools)out+=`<details><summary>Manual lookups</summary>\n\n${tools}\n\n</details>\n\n`;if(t)out+=`## Assistant\n${t}\n\n`}
   }
   out+=`---\nTroubleshooting aid output. Verify against current approved maintenance data before maintenance or return to service.\n`;
-  const blob=new Blob([out],{type:'text/markdown'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`G600-case-${CASE.title.replace(/[^A-Za-z0-9]+/g,'-').slice(0,40)}-${new Date(CASE.created).toISOString().slice(0,10)}.md`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+  const blob=new Blob([out],{type:'text/markdown'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=pdfName(meta).replace(/\.pdf$/,'.md');a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+}
+$('#btnExport').onclick=()=>{
+  if(!CASE){showModal('EXPORT','<div class="kv">Open a case first.</div>');return}
+  const f=CASE.form=CASE.form||{};
+  showModal('EXPORT CASE',`<div class="kv"><b>${esc(CASE.title)}</b><br>${CASE.msgs.filter(m=>m.role==='assistant').length} replies · opened ${esc(new Date(CASE.created).toLocaleString())}</div>
+    <div class="grid2"><div class="field"><label>Registration</label><input id="exReg" value="${esc(f.reg||'')}" placeholder="N1KE" autocapitalize="characters" autocomplete="off"></div><div class="field"><label>Serial number</label><input id="exSn" value="${esc(f.sn||'')}" placeholder="${esc(SN_HINT)}" autocomplete="off"></div></div>
+    <div class="hint" id="exTimes" style="margin:-4px 0 12px">${esc(timesLine(f)||'No aircraft / engine times entered for this case.')}</div>
+    <button class="btn" id="exPdf">Create PDF</button>
+    <div id="exOut" style="margin-top:12px"></div>
+    <button class="btn2" id="exMd" style="width:100%;margin-top:12px">Download Markdown (.md)</button>`);
+  const sync=()=>{f.reg=$('#exReg').value.trim().toUpperCase();f.sn=$('#exSn').value.trim();if(f.reg||f.sn)store.set(LAST_AC_KEY,{reg:f.reg,sn:f.sn});saveCase()};
+  $('#exMd').onclick=()=>{sync();exportMarkdown()};
+  $('#exPdf').onclick=async()=>{
+    sync();const btn=$('#exPdf');btn.disabled=true;btn.textContent='Creating PDF…';$('#exOut').innerHTML='';
+    try{
+      const meta=exportMeta(),blob=await buildPdf(meta),name=pdfName(meta),file=new File([blob],name,{type:'application/pdf'}),url=URL.createObjectURL(blob);
+      btn.textContent='✔ PDF ready';
+      const canShare=!!(navigator.canShare&&navigator.canShare({files:[file]}));
+      $('#exOut').innerHTML=`<div class="kv" style="margin-bottom:8px">${esc(name)} · ${(blob.size/1024).toFixed(0)} KB</div>
+        <div class="grid2">${canShare?'<button class="btn" id="exShare">Share / Save</button>':''}<a class="btn2" id="exOpen" href="${url}" download="${esc(name)}" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:center;text-decoration:none;${canShare?'':'grid-column:1/-1'}">${canShare?'Open':'Download PDF'}</a></div>`;
+      if(canShare)$('#exShare').onclick=async()=>{try{await navigator.share({files:[file],title:name})}catch(e){if(e.name!=='AbortError')$('#exOut').insertAdjacentHTML('beforeend',`<div class="errbox" style="margin-top:8px">${esc(e.message)}</div>`)}};
+    }catch(e){btn.disabled=false;btn.textContent='Create PDF';$('#exOut').innerHTML=`<div class="errbox">${esc(e.message||String(e))}</div>`}
+  };
 };
+
 $('#btnSettings').onclick=()=>openSettings();
 
 /* ═════════════════ DIRECT SEARCH ═════════════════ */
