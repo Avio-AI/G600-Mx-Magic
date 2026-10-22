@@ -336,7 +336,7 @@ mark{background:var(--mark-bg);color:var(--amber-glow);border-radius:2px}
             <div class="aclist hidden" id="melList"></div>
           </div>
           <div class="field" style="margin-top:10px"><label>Operating rule</label><select id="melOps"></select></div>
-          <div class="field" style="max-width:260px"><label>Day of discovery</label><input id="melDate" type="date"></div>
+          <div class="field" style="max-width:300px"><label>Day of discovery</label><div style="display:flex;gap:6px"><input id="melDate" placeholder="21 OCT 2026" autocapitalize="characters" autocomplete="off" spellcheck="false" style="text-transform:uppercase"><button class="btn2 small" id="melDateBtn" type="button" title="Pick a date" style="position:relative;overflow:hidden">📅<input id="melDatePick" type="date" tabindex="-1" style="position:absolute;inset:0;opacity:0;width:100%;height:100%"></button></div></div>
           <div class="hint">Finds the MMEL relief (Section 1 items and Section 2 CAS messages), who authorizes dispatch under your operating rule, the repair interval, and the Gulfstream MOPP (M) maintenance, (O) operational and placarding procedures. No AI or API key needed.</div>
           <div class="hint" id="melStatus"></div>
           <button class="btn2 small hidden" id="melAmdlBlank" style="margin-top:10px">Discrepancy-Only AMDL (No Deferral)</button>
@@ -405,6 +405,12 @@ const store={
 let cfg={...DEFAULTS,...store.get('g600ts_cfg',{})};
 function saveCfg(){store.set('g600ts_cfg',cfg,cfg.remember)}
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+// all dates: 21 OCT 2026
+const MONS=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+function dmy(d){if(!(d instanceof Date))d=new Date(d);return isNaN(d)?'':`${d.getDate()} ${MONS[d.getMonth()]} ${d.getFullYear()}`}
+function dmyt(d){if(!(d instanceof Date))d=new Date(d);return isNaN(d)?'':`${dmy(d)} ${d.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}`}
+// "03/12/2024" or "2026-10-16" -> "12 MAR 2024" / "16 OCT 2026"; anything else unchanged
+function dmyStr(v){v=String(v||'');let m=v.match(/^(\d{4})-(\d{2})-(\d{2})$/);if(m)return dmy(new Date(+m[1],m[2]-1,+m[3]));m=v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);if(m)return dmy(new Date(+m[3],m[1]-1,+m[2]));return v.replace(/\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/g,(x,a,b,c)=>dmy(new Date(+c,a-1,+b)))}
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 
@@ -816,6 +822,7 @@ Known gaps: ${(m.gaps||[]).join(' | ')}
 Do not stop at one search: search, read the relevant pages, cross-check between manuals. Keep tool calls purposeful (typically 3–10 per turn).
 
 # Rules
+- Write every date as day, three-letter month in capitals, four-digit year: 21 OCT 2026 (also in logbook / corrective-action wording).
 - Cite every manual-derived fact inline using the citation strings returned by tools, in square brackets, e.g. [AMM 21-61-03-280B p2], [SDM 21-00-00 p3], [FSI 21 p129], [iWDM 73P2120006J_TP sh 3.000], [iWDM 006A5P1 pin-out]. Never invent citations.
 - Never invent part numbers, limits, tolerances, torque values, pin numbers, wire numbers or task numbers. If you cannot find it, say so and point to where it should be.
 - Clearly label anything from general experience rather than these manuals as "General knowledge (not from the manuals)".
@@ -1301,7 +1308,7 @@ async function openPage(docId,page,opt={}){
     }).catch(e=>{box.innerHTML=`<div class="errbox">${esc(e.message)}</div>`});
   } else {
     const local=`C:\\Gulfstream PDFs\\G600\\${d.path.replace(/\//g,'\\')}`;
-    showModal(pg.cite,`<div class="kv"><b>${esc(d.m)} — ${esc(d.title)}</b><br>${esc(d.type||'')} · ATA ${esc(d.ata||'—')} · page ${page} of ${d.pages}${d.rev?' · '+esc(d.rev):''}<br>PDF: <span style="font-family:var(--mono);font-size:12px">${esc(local)}</span> (page ${page})</div>
+    showModal(pg.cite,`<div class="kv"><b>${esc(d.m)} — ${esc(d.title)}</b><br>${esc(d.type||'')} · ATA ${esc(d.ata||'—')} · page ${page} of ${d.pages}${d.rev?' · '+esc(dmyStr(d.rev)):''}<br>PDF: <span style="font-family:var(--mono);font-size:12px">${esc(local)}</span> (page ${page})</div>
      ${nav}</div><div class="pagetext">${esc(pg.text)}</div>`);
   }
   $('#pgPrev').onclick=()=>openPage(docId,page-1,{...opt,noPush:true});$('#pgNext').onclick=()=>openPage(docId,page+1,{...opt,noPush:true});
@@ -1349,7 +1356,7 @@ function openSettings(note){
   <div id="stAbout" class="disclaimer" style="margin-top:14px"></div>`);
   $('#stTheme').onchange=e=>setTheme(e.target.value);
   const sync=()=>{const gh=$('#stMode').value==='github';$('#stGh').classList.toggle('hidden',!gh);$('#stUrl').classList.toggle('hidden',gh)};sync();$('#stMode').onchange=sync;
-  if(DATA.manifest)$('#stAbout').innerHTML=`<b>Library:</b> ${esc(DATA.manifest.aircraft)} · index built ${esc(DATA.manifest.built)}<br>${Object.entries(DATA.manifest.revisions).map(([k,v])=>`${k}: ${esc(v)}`).join(' · ')}<br><b>Known gaps:</b> ${DATA.manifest.gaps.map(esc).join(' · ')}`;
+  if(DATA.manifest)$('#stAbout').innerHTML=`<b>Library:</b> ${esc(DATA.manifest.aircraft)} · index built ${esc(dmyStr(DATA.manifest.built))}<br>${Object.entries(DATA.manifest.revisions).map(([k,v])=>`${k}: ${esc(dmyStr(v))}`).join(' · ')}<br><b>Known gaps:</b> ${DATA.manifest.gaps.map(esc).join(' · ')}`;
   $('#stSave').onclick=async()=>{
     Object.assign(cfg,{anthropicKey:$('#stKey').value.trim(),model:$('#stModel').value,thinking:$('#stThink').checked,dataMode:$('#stMode').value,dataRepo:$('#stRepo').value.trim(),dataBranch:$('#stBranch').value.trim()||'main',githubToken:$('#stTok').value.trim(),dataUrl:$('#stDataUrl').value.trim(),remember:$('#stRemember').checked});
     saveCfg();DATA.shards.clear();DATA.pins.clear();DATA.comps=null;$('#stStatus').textContent='Connecting…';
@@ -1515,11 +1522,9 @@ function caseListLabel(c){
   if(!ata&&c.deferral&&typeof melById==='function'&&typeof MEL!=='undefined'&&MEL){const g=melById(c.deferral.mel_id);if(g&&g.ata)ata=g.ata}
   return `${tail} · ATA ${ata||'—'} · ${dmy(new Date(c.created||c.updated))}`;
 }
-// 21 OCT 2026
-function dmy(d){return `${d.getDate()} ${['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'][d.getMonth()]} ${d.getFullYear()}`}
 $('#btnCases').onclick=()=>{
   const cases=loadCases();
-  showModal('RECENT CASES',cases.length?`<div class="caselist">${cases.map(c=>`<div class="ci"><div class="t" data-id="${c.id}"><div>${esc(caseListLabel(c))}</div><div>Updated ${dmy(new Date(c.updated))} ${new Date(c.updated).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})} · ${(n=>n+(n===1?' reply':' replies'))(c.msgs.filter(m=>m.role==='assistant').length)}</div></div><button class="btn2 small danger" data-del="${c.id}">Delete</button></div>`).join('')}</div>`:'<div class="kv">No saved cases on this device yet.</div>');
+  showModal('RECENT CASES',cases.length?`<div class="caselist">${cases.map(c=>`<div class="ci"><div class="t" data-id="${c.id}"><div>${esc(caseListLabel(c))}</div><div>Updated ${dmyt(c.updated)} · ${(n=>n+(n===1?' reply':' replies'))(c.msgs.filter(m=>m.role==='assistant').length)}</div></div><button class="btn2 small danger" data-del="${c.id}">Delete</button></div>`).join('')}</div>`:'<div class="kv">No saved cases on this device yet.</div>');
   $$('.caselist .t').forEach(el=>el.onclick=()=>{CASE=loadCases().find(c=>c.id===el.dataset.id);hideModal();showChat();renderCase()});
   $$('.caselist [data-del]').forEach(b=>b.onclick=()=>{const cs=loadCases().filter(c=>c.id!==b.dataset.del);try{localStorage.setItem('g600ts_cases',JSON.stringify(cs))}catch(e){}if(CASE&&CASE.id===b.dataset.del){CASE=null;showIntake()}$('#btnCases').onclick()});
 };
@@ -1619,7 +1624,7 @@ async function buildPdf(meta){
   // ── page 1 summary block
   header();
   font('bold',15,C.ink);doc.text(doc.splitTextToSize(pclean(meta.title),CW),M,y+14);y+=22*Math.min(2,doc.splitTextToSize(pclean(meta.title),CW).length);
-  font('normal',9,C.dim);doc.text(pclean(`${APPNAME}${meta.apt?' · Airport '+meta.apt:''} · Opened ${meta.opened} · Exported ${new Date().toLocaleString()}`),M,y+6,{maxWidth:CW});y+=20;
+  font('normal',9,C.dim);doc.text(pclean(`${APPNAME}${meta.apt?' · Airport '+meta.apt:''} · Opened ${meta.opened} · Exported ${dmyt(new Date())}`),M,y+6,{maxWidth:CW});y+=20;
   // ── conversation
   let lastRole=null;
   for(const m of CASE.msgs){
@@ -1651,7 +1656,7 @@ function shortTitle(f){
 }
 function exportMeta(){
   const f=CASE.form||{};
-  return {reg:(f.reg||'').toUpperCase(),sn:f.sn||'',apt:(f.apt||'').toUpperCase(),times:timesLine(f),title:CASE.form&&(CASE.form.faults||CASE.form.desc)?shortTitle(CASE.form):(CASE.title||'Troubleshooting case'),opened:new Date(CASE.created).toLocaleString(),model:cfg.model};
+  return {reg:(f.reg||'').toUpperCase(),sn:f.sn||'',apt:(f.apt||'').toUpperCase(),times:timesLine(f),title:CASE.form&&(CASE.form.faults||CASE.form.desc)?shortTitle(CASE.form):(CASE.title||'Troubleshooting case'),opened:dmyt(CASE.created),model:cfg.model};
 }
 function caseAta(f){
   // ATA chapter-subchapter from the first CAS / CMC entry that has one, else the chapter alone
@@ -1659,8 +1664,8 @@ function caseAta(f){
   const full=list.find(a=>/^\d\d-\d\d/.test(a));if(full)return full.slice(0,5);
   const ch=list.find(a=>/^\d\d/.test(a));return ch?ch.slice(0,2):'';
 }
-function dateCode(d){d=d||new Date();return String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0')+String(d.getFullYear()).slice(-2)}
-// file name: TAIL_ATA_MMDDYY  (e.g. N1KE_21-31_102126.pdf)
+function dateCode(d){d=d||new Date();return `${String(d.getDate()).padStart(2,'0')}${MONS[d.getMonth()]}${d.getFullYear()}`}
+// file name: TAIL_ATA_DDMMMYYYY  (e.g. N1KE_21-31_21OCT2026.pdf)
 function pdfName(meta){const tail=(meta.reg||APPNAME).replace(/[^A-Za-z0-9-]/g,'');return `${[tail,caseAta(CASE.form),dateCode(new Date())].filter(Boolean).join('_')}.pdf`}
 function exportMarkdown(){
   const meta=exportMeta();
@@ -1675,7 +1680,7 @@ function exportMarkdown(){
 $('#btnExport').onclick=()=>{
   if(!CASE){showModal('EXPORT','<div class="kv">Open a case first.</div>');return}
   const f=CASE.form=CASE.form||{};
-  showModal('EXPORT CASE',`<div class="kv"><b>${esc(CASE.title)}</b><br>${CASE.msgs.filter(m=>m.role==='assistant').length} replies · opened ${esc(new Date(CASE.created).toLocaleString())}</div>
+  showModal('EXPORT CASE',`<div class="kv"><b>${esc(CASE.title)}</b><br>${CASE.msgs.filter(m=>m.role==='assistant').length} replies · opened ${esc(dmyt(CASE.created))}</div>
     <div class="grid2"><div class="field"><label>Registration</label><input id="exReg" value="${esc(f.reg||'')}" placeholder="N1KE" autocapitalize="characters" autocomplete="off"></div><div class="field"><label>Serial number</label><input id="exSn" value="${esc(f.sn||'')}" placeholder="${esc(SN_HINT)}" autocomplete="off"></div></div>
     <div class="hint" id="exTimes" style="margin:-4px 0 12px">${esc(timesLine(f)||'No aircraft / engine times entered for this case.')}</div>
     <button class="btn" id="exPdf">Create PDF</button>
@@ -1773,7 +1778,7 @@ function deferralCard(){
     const parts=[c.pn_off&&'P/N off '+c.pn_off,c.sn_off&&'S/N off '+c.sn_off,c.pn_on&&'P/N on '+c.pn_on,c.sn_on&&'S/N on '+c.sn_on].filter(Boolean);
     if(parts.length)h+=`<div class="hint">${esc(parts.join(' · '))}</div>`}
   else{const iv=melInterval(r,ops,new Date(CASE.created||Date.now()));h+=`<div class="melint">${esc(iv.line)}${iv.due?`<br><b>Repair by end of ${esc(fmtDate(iv.due))}</b>`:''}</div>`}
-  if(CASE.amdl&&CASE.amdl.savedAt)h+=`<div class="hint">AMDL entries saved ${esc(new Date(CASE.amdl.savedAt).toLocaleString())}</div>`;
+  if(CASE.amdl&&CASE.amdl.savedAt)h+=`<div class="hint">AMDL entries saved ${esc(dmyt(CASE.amdl.savedAt))}</div>`;
   h+=`<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">${ops.amdl?`<button class="btn small dfAmdl">${c?'Create Completed AMDL':'Create Solairus AMDL'}</button>`:''}${g&&r?'<button class="btn2 small dfPdf">Deferral PDF</button><button class="btn2 small dfMel">Open in MEL Tab</button>':''}</div>`;
   el.innerHTML=h;
   const a=el.querySelector('.dfAmdl');if(a)a.onclick=()=>openCaseAmdl();
@@ -1793,8 +1798,10 @@ async function showIntakeMel(g){
 function melTitle(g){return g.kind==='cas'?g.name:(g.item+(g.sub?' — '+g.sub:''))}
 function melRef(g){return g.kind==='cas'?'MMEL Section 2 · CAS message relief':`MMEL ${g.ata}-${g.seq}${g.sub?' · sub-item '+g.k.split('-').slice(2).join('-'):''} · ${tc(g.sys)}`}
 function addDays(d,n){const x=new Date(d.getFullYear(),d.getMonth(),d.getDate()+n);return x}
-const fmtDate=d=>d.toLocaleDateString(undefined,{weekday:'short',year:'numeric',month:'short',day:'numeric'});
-function parseDay(v){const m=String(v||'').match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?new Date(+m[1],m[2]-1,+m[3]):new Date()}
+const fmtDate=d=>dmy(d);
+function parseDay(v){v=String(v||'').trim();let m=v.match(/^(\d{4})-(\d{2})-(\d{2})$/);if(m)return new Date(+m[1],m[2]-1,+m[3]);
+  m=v.match(/^(\d{1,2})\s*([A-Za-z]{3})[A-Za-z]*\.?\s*(\d{4})$/);if(m){const i=MONS.indexOf(m[2].toUpperCase());if(i>=0)return new Date(+m[3],i,+m[1])}
+  m=v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);if(m)return new Date(+m[3]<100?2000+ +m[3]:+m[3],m[1]-1,+m[2]);return new Date()}
 // repair interval for one relief row under the selected operating rule
 function melInterval(r,ops,disc){
   const text=(r.rem||r.lim||'');
@@ -1817,7 +1824,7 @@ function melProcs(r){
 function melAuthorityHtml(g,ops){
   const L=[];
   L.push(`<div class="melrow"><b>Approval:</b> ${esc(ops.basis)}</div>`);
-  if(ops.preamble)L.push(`<div class="melrow">${esc(ops.preamble)} Base document: ${esc(MEL.mmel.title)}, Rev ${esc(MEL.mmel.rev)} (${esc(MEL.mmel.date)}). Your MEL may be more restrictive than the MMEL and always governs.</div>`);
+  if(ops.preamble)L.push(`<div class="melrow">${esc(ops.preamble)} Base document: ${esc(MEL.mmel.title)}, Rev ${esc(MEL.mmel.rev)} (${esc(dmyStr(MEL.mmel.date))}). Your MEL may be more restrictive than the MMEL and always governs.</div>`);
   if(ops.none){
     L.push(`<div class="melrow melwarn"><b>No deferral possible.</b> The G600 is a turbine-powered airplane with an MMEL, so 14 CFR 91.213(d) is not available. Without an MEL authorization the inoperative item must be repaired before flight, or the aircraft flown under a special flight permit (14 CFR 21.197) issued by the FAA.</div>`);
     return L.join('');
@@ -1867,7 +1874,7 @@ function renderMelItem(g){
     if(rel.length>1)h+=`<div class="hint" style="margin:-4px 2px 10px">${rel.length} relief options. Use the one whose conditions match the aircraft's actual configuration and failure.</div>`;
     h+=rel.map(([r,i])=>melReliefHtml(g,r,i,ops,disc)).join('');
   }
-  h+=`<div class="disclaimer">From the Gulfstream GVII-G500/G600 MMEL Rev ${esc(MEL.mmel.rev)} and MOPP Rev ${esc(MEL.mopp.rev)} (${esc(MEL.mopp.date)}). Dispatch must follow the operator's own approved MEL and procedures, the AFM limitations, and the current revisions.</div>`;
+  h+=`<div class="disclaimer">From the Gulfstream GVII-G500/G600 MMEL Rev ${esc(MEL.mmel.rev)} and MOPP Rev ${esc(MEL.mopp.rev)} (${esc(dmyStr(MEL.mopp.date))}). Dispatch must follow the operator's own approved MEL and procedures, the AFM limitations, and the current revisions.</div>`;
   $('#melResults').innerHTML=h;
   $$('#melResults .melpdf').forEach(b=>b.onclick=()=>melExport(g,g.rel[+b.dataset.i]));
   $$('#melResults .melamdl').forEach(b=>b.onclick=()=>{const r=g.rel[+b.dataset.i];openAmdl({disc:g.kind==='cas'?`${g.name}${g.color?' ('+g.color+')':''} CAS message posted.`:`${melTitle(g)}${r.note?' ('+r.note+')':''} inoperative.`,deferral:{g,r}})});
@@ -1883,9 +1890,9 @@ function renderMelAc(){
 function pickMel(g){if(!g)return;$('#melInput').value=melTitle(g);melIdx=-1;$('#melList').classList.add('hidden');$('#melInput').blur();renderMelItem(g)}
 async function initMelPane(){
   const sel=$('#melOps');if(!sel.options.length)sel.innerHTML=Object.entries(MEL_OPS).map(([k,v])=>`<option value="${k}" ${k===(cfg.melOps||'91-d195')?'selected':''}>${esc(v.label)}</option>`).join('');
-  if(!$('#melDate').value){const d=new Date();$('#melDate').value=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
+  if(!$('#melDate').value)$('#melDate').value=dmy(new Date());
   melAmdlBtn();
-  try{await loadMel();$('#melStatus').textContent=`MMEL Rev ${MEL.mmel.rev} (${MEL.mmel.date}) · MOPP Rev ${MEL.mopp.rev} · ${MEL.items.length} items · ${MEL.cas.length} CAS messages`}
+  try{await loadMel();$('#melStatus').textContent=`MMEL Rev ${MEL.mmel.rev} (${dmyStr(MEL.mmel.date)}) · MOPP Rev ${MEL.mopp.rev} · ${MEL.items.length} items · ${MEL.cas.length} CAS messages`}
   catch(e){$('#melStatus').innerHTML=`<span class="warnnote">${esc(e.message||e)}</span>`}
 }
 $('#melInput').addEventListener('input',()=>{melIdx=-1;renderMelAc()});
@@ -1899,7 +1906,9 @@ $('#melInput').addEventListener('keydown',e=>{
 function melAmdlBtn(){const b=$('#melAmdlBlank');if(b)b.classList.toggle('hidden',!melOps().amdl)}
 $('#melOps').onchange=e=>{cfg.melOps=e.target.value;saveCfg();melAmdlBtn();if(melSel)renderMelItem(melSel)};
 $('#melAmdlBlank').onclick=()=>openAmdl({disc:caseDiscrepancy()});
-$('#melDate').onchange=()=>{if(melSel)renderMelItem(melSel)};
+$('#melDate').onchange=()=>{const d=parseDay($('#melDate').value);$('#melDate').value=dmy(d);if(melSel)renderMelItem(melSel)};
+$('#melDatePick').onchange=e=>{if(!e.target.value)return;$('#melDate').value=dmy(parseDay(e.target.value));if(melSel)renderMelItem(melSel)};
+$('#melDatePick').onclick=e=>{try{e.target.showPicker()}catch(_){}};
 
 /* ── MEL deferral PDF ── */
 async function buildMelPdf(meta,g,r){
@@ -1927,7 +1936,7 @@ async function buildMelPdf(meta,g,r){
   function label(t,col,sub){need(30);y+=8;font('bold',8.5,col);doc.text(pclean(t),M,y+8);if(sub){font('normal',8,C.dim);doc.text(pclean(sub),W-M,y+8,{align:'right'})}doc.setDrawColor(...col);doc.setLineWidth(.6);doc.line(M,y+12,M+CW,y+12);y+=18}
   header();
   font('bold',15,C.ink);const tl=doc.splitTextToSize(pclean(melTitle(g)),CW);doc.text(tl.slice(0,3),M,y+14);y+=20*Math.min(3,tl.length)+2;
-  font('normal',9,C.dim);doc.text(doc.splitTextToSize(pclean(`${APPNAME} · ${melRef(g)}${meta.apt?' · Airport '+meta.apt:''} · Exported ${new Date().toLocaleString()}`),CW),M,y+6);y+=18;
+  font('normal',9,C.dim);doc.text(doc.splitTextToSize(pclean(`${APPNAME} · ${melRef(g)}${meta.apt?' · Airport '+meta.apt:''} · Exported ${dmyt(new Date())}`),CW),M,y+6);y+=18;
   // summary box
   const iv=melInterval(r,meta.ops,meta.disc);
   const rows=[['Repair category',`${r.cat}${r.auth?'  <'+r.auth+'>':''}`],...(r.inst!=null?[['Installed / required',`${r.inst||'—'} / ${r.req||'—'}`]]:[]),...(r.qual?[['Applies to',r.qual]]:[]),...(r.note?[['Applies to',r.note]]:[]),
@@ -2007,7 +2016,7 @@ function amdlLib(){
   })().catch(e=>{_amdlLib=null;throw e});
   return _amdlLib;
 }
-const mdy=d=>d?`${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}/${String(d.getFullYear()).slice(-2)}`:'';
+const mdy=d=>d?dmy(d):'';
 const isoDay=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 function isoToMdy(v){return v?mdy(parseDay(v)):''}
 function oneLine(s){return pclean(String(s||'').replace(/\s*\n\s*/g,' ').replace(/\s{2,}/g,' ').trim())}
@@ -2071,24 +2080,24 @@ function openAmdl(pre){
   const aDays=def&&cat==='A'?((def.r.rem||def.r.lim||'').match(/within\s+(\d+)\s+(?:consecutive\s+)?(?:calendar|flight)/i)||[])[1]||'':'';
   const fld=(id,label,val,ph='',extra='')=>`<div class="field"><label>${label}</label><input id="${id}" value="${esc(val||'')}" placeholder="${esc(ph)}" autocomplete="off" ${extra}></div>`;
   showModal('SOLAIRUS AMDL',`<div class="kv">Solairus Aviation Form 502.1 · Aircraft Maintenance Discrepancy Log. Entries are typed onto the blank form; signatures are left for ink or e-signature.</div>
-    <div class="grid3">${fld('amReg','Reg',(f.reg||last.reg||'').toUpperCase(),'N1KE','autocapitalize="characters"')}${fld('amLog','Log No.','','')}${fld('amDate','Date',mdy(def?disc:today),'MM/DD/YY')}</div>
+    <div class="grid3">${fld('amReg','Reg',(f.reg||last.reg||'').toUpperCase(),'N1KE','autocapitalize="characters"')}${fld('amLog','Log No.','','')}${fld('amDate','Date',mdy(def?disc:today),'DD MMM YYYY')}</div>
     <div class="grid3">${fld('amAftt','AFTT',f.tt,'hrs')}${fld('amAftc','AFTC',f.cyc,'cycles')}${fld('amMisc','Misc',f.apt?`${f.apt}${f.sn?' · S/N '+f.sn:''}`:(f.sn?'S/N '+f.sn:''),'')}</div>
     <h3 class="amh">Discrepancy</h3>
-    <div class="grid2">${fld('amInitBy','Initiated by',me.initBy||'','Name')}${fld('amInitDate','Date',mdy(def?disc:today),'MM/DD/YY')}</div>
+    <div class="grid2">${fld('amInitBy','Initiated by',me.initBy||'','Name')}${fld('amInitDate','Date',mdy(def?disc:today),'DD MMM YYYY')}</div>
     <div class="field"><textarea id="amDisc" rows="3">${esc(pre.disc||'')}</textarea></div>
     ${def?`<h3 class="amh">Deferral</h3>
     <div class="grid3">${fld('amRef','MEL/CDL/NEF ref',ref,'MEL 34-3')}
       <div class="field"><label>Cat</label><select id="amCat">${['A','B','C','D','OTHER'].map(c=>`<option ${c===cat?'selected':''}>${c}</option>`).join('')}</select></div>
-      ${fld('amExp','Exp',iv&&iv.due?mdy(iv.due):'','MM/DD/YY')}</div>
+      ${fld('amExp','Exp',iv&&iv.due?mdy(iv.due):'','DD MMM YYYY')}</div>
     <div class="grid2">${fld('amADays','Cat A days',aDays,'days')}${fld('amOther','Other days','','days')}</div>
     <div class="hint" style="margin:-4px 0 8px">${esc(iv?iv.line:'')}</div>
     <div class="field"><label>Deferral text</label><textarea id="amDef" rows="5">${esc(amdlDeferralText(def.g,def.r,ref))}</textarea></div>
-    <div class="grid2">${fld('amDefName','Deferred by (name)',me.name||'','')}${fld('amDefCert','Certificate #',me.cert||'','')}${fld('amDefLoc','Location',f.apt||me.loc||'','KSJC','autocapitalize="characters"')}${fld('amDefDate','Date',mdy(disc),'MM/DD/YY')}</div>`:''}
+    <div class="grid2">${fld('amDefName','Deferred by (name)',me.name||'','')}${fld('amDefCert','Certificate #',me.cert||'','')}${fld('amDefLoc','Location',f.apt||me.loc||'','KSJC','autocapitalize="characters"')}${fld('amDefDate','Date',mdy(disc),'DD MMM YYYY')}</div>`:''}
     <details class="more" id="amCorrBox"><summary>▸ Corrective Action, Parts, Return to Service (Optional)</summary>
       <div class="field"><label>MX performed</label><input id="amMx" autocomplete="off"></div>
       <div class="field"><label>Corrective action</label><textarea id="amCorr" rows="3"></textarea></div>
       <div class="grid2">${fld('amPnOff','PN off','')}${fld('amSnOff','SN off','')}${fld('amPnOn','PN on','')}${fld('amSnOn','SN on','')}</div>
-      <div class="grid2">${fld('amSigName','Signed by (name)',me.name||'','')}${fld('amSigCert','Certificate #',me.cert||'','')}${fld('amSigLoc','Location',f.apt||me.loc||'','')}${fld('amSigDate','Date','','MM/DD/YY')}</div>
+      <div class="grid2">${fld('amSigName','Signed by (name)',me.name||'','')}${fld('amSigCert','Certificate #',me.cert||'','')}${fld('amSigLoc','Location',f.apt||me.loc||'','')}${fld('amSigDate','Date','','DD MMM YYYY')}</div>
     </details>
     <button class="btn" id="amGo" style="margin-top:8px">Create AMDL</button><div id="amOut" style="margin-top:12px"></div>`);
   // restore this case's saved AMDL entries, then the recorded corrective action
