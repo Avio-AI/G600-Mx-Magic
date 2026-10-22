@@ -429,6 +429,12 @@ main{overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
 body.kb .tabs,body.inchat .tabs{display:flex}
 html:has(body.inchat),body.inchat{background:linear-gradient(to bottom,var(--bg) 0,var(--bg) 50%,var(--nav) 50%,var(--nav) 100%)}
 
+/* composer sits right on the bottom bar (the bar already covers the home-indicator area) */
+#composer{padding:6px 12px 8px}
+#composer .qchips{margin-bottom:6px}
+.view{padding-bottom:16px}
+.sheetbd{padding-bottom:calc(16px + var(--safe-b))}
+
 </style>
 </head>
 <body>
@@ -1701,7 +1707,7 @@ function resetForm(){selFaults=[];renderFaultChips();selCmc=[];renderCmcChips();
 /* ═════════════════ CHAT ═════════════════ */
 function showChat(){$('#intakeView').classList.add('hidden');$('#chatView').classList.remove('hidden');document.body.classList.add('inchat');$$('.tab').forEach(x=>x.classList.toggle('on',x.dataset.tab==='describe'))}
 function showIntake(){$('#chatView').classList.add('hidden');$('#intakeView').classList.remove('hidden');document.body.classList.remove('inchat');$('#caseTitle').textContent='';$('#main').scrollTop=0}
-const FOLLOW=['Next check?','Show the wiring','Pins to meter','SSPC / CB?','Ops check','Logbook entry'];
+const FOLLOW=['Next check?','Show the wiring','SSPC / CB?','Ops check'];
 const FOLLOW_FULL={'Next check?':'What should I check next?','Show the wiring':'Show me the wiring for this','Pins to meter':'Which connector pins / wires do I meter?','SSPC / CB?':'Which SSPC / CB powers this?','Part numbers':'Part numbers for the likely LRU','Ops check':'Ops check after the repair','System logic':'Explain the system logic','Logbook entry':'Summarize for the logbook'};
 function renderFollowChips(){$('#followChips').innerHTML=FOLLOW.map(t=>`<button class="qchip">${esc(t)}</button>`).join('');$$('#followChips .qchip').forEach(b=>b.onclick=()=>{$('#chatInput').value=FOLLOW_FULL[b.textContent]||b.textContent;sendChat()})}
 function setSendState(){const s=$('#btnSend');s.classList.toggle('stop',BUSY);s.innerHTML=BUSY?'<span class="ms fill">stop</span>':'<span class="ms">arrow_upward</span>';s.title=BUSY?'Stop':'Send'}
