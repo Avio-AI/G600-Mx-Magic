@@ -419,6 +419,12 @@ html,body{position:fixed;inset:0;width:100%;height:100%;overflow:hidden;overscro
 header,.tabs{touch-action:none;overscroll-behavior:none}
 main{overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
 
+/* bottom bar: white with a thin black top border (light theme) */
+:root[data-theme="light"]{--nav:#ffffff;--navline:#000000}
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]){--nav:#ffffff;--navline:#000000}}
+:root{--navline:#5e6267}
+.tabs{border-top:1px solid var(--navline);box-shadow:0 60px 0 0 var(--nav)}
+
 </style>
 </head>
 <body>
