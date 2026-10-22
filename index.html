@@ -1507,18 +1507,19 @@ function saveCase(){
   for(;;){try{localStorage.setItem('g600ts_cases',JSON.stringify(cases));break}catch(e){if(cases.length<=1)break;cases.pop()}}
   try{localStorage.setItem('g600ts_current',JSON.stringify(CASE.id))}catch(e){}
 }
-// Recent Cases label: TAIL · ATA CC-SS · MM/DD/YY (case opened)
+// Recent Cases label: TAIL · ATA CC-SS · 21 OCT 2026 (case opened)
 function caseListLabel(c){
   const f=c.form||{};const tail=String(f.reg||'').toUpperCase()||'No Tail';
   let ata=caseAta(f);
   if(!ata&&c.deferral&&c.deferral.ata)ata=c.deferral.ata;
   if(!ata&&c.deferral&&typeof melById==='function'&&typeof MEL!=='undefined'&&MEL){const g=melById(c.deferral.mel_id);if(g&&g.ata)ata=g.ata}
-  const d=new Date(c.created||c.updated);const dt=`${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}/${String(d.getFullYear()).slice(-2)}`;
-  return `${tail} · ATA ${ata||'—'} · ${dt}`;
+  return `${tail} · ATA ${ata||'—'} · ${dmy(new Date(c.created||c.updated))}`;
 }
+// 21 OCT 2026
+function dmy(d){return `${d.getDate()} ${['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'][d.getMonth()]} ${d.getFullYear()}`}
 $('#btnCases').onclick=()=>{
   const cases=loadCases();
-  showModal('RECENT CASES',cases.length?`<div class="caselist">${cases.map(c=>`<div class="ci"><div class="t" data-id="${c.id}"><div>${esc(caseListLabel(c))}</div><div>Updated ${new Date(c.updated).toLocaleString()} · ${(n=>n+(n===1?' reply':' replies'))(c.msgs.filter(m=>m.role==='assistant').length)}</div></div><button class="btn2 small danger" data-del="${c.id}">Delete</button></div>`).join('')}</div>`:'<div class="kv">No saved cases on this device yet.</div>');
+  showModal('RECENT CASES',cases.length?`<div class="caselist">${cases.map(c=>`<div class="ci"><div class="t" data-id="${c.id}"><div>${esc(caseListLabel(c))}</div><div>Updated ${dmy(new Date(c.updated))} ${new Date(c.updated).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})} · ${(n=>n+(n===1?' reply':' replies'))(c.msgs.filter(m=>m.role==='assistant').length)}</div></div><button class="btn2 small danger" data-del="${c.id}">Delete</button></div>`).join('')}</div>`:'<div class="kv">No saved cases on this device yet.</div>');
   $$('.caselist .t').forEach(el=>el.onclick=()=>{CASE=loadCases().find(c=>c.id===el.dataset.id);hideModal();showChat();renderCase()});
   $$('.caselist [data-del]').forEach(b=>b.onclick=()=>{const cs=loadCases().filter(c=>c.id!==b.dataset.del);try{localStorage.setItem('g600ts_cases',JSON.stringify(cs))}catch(e){}if(CASE&&CASE.id===b.dataset.del){CASE=null;showIntake()}$('#btnCases').onclick()});
 };
