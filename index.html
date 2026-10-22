@@ -741,7 +741,7 @@ async function runTool(name,input){
       if(!g||!r)return {summary:'not found',error:true,data:{error:'Unknown mel_id / option. Call lookup_mel and use its mel_id and option values.'}};
       if(!melAuthOk(r,ops))return {summary:'wrong authority',error:true,data:{error:'That relief option is not valid under the operating rule ('+ops.label+').'}};
       const disc=CASE&&CASE.created?new Date(CASE.created):new Date();const iv=melInterval(r,ops,disc);
-      CASE.deferral={mel_id:input.mel_id,option:input.option|0,disc:String(input.discrepancy||''),verification:String(input.verification||''),at:Date.now()};saveCase();
+      CASE.deferral={mel_id:input.mel_id,option:input.option|0,ata:g.kind==='item'?g.ata:'',disc:String(input.discrepancy||''),verification:String(input.verification||''),at:Date.now()};saveCase();
       return {summary:`${melTitle(g).slice(0,40)} · Cat ${r.cat}`,data:{recorded:true,item:melTitle(g),category:r.cat,repair_interval:iv.line,repair_by:iv.due?fmtDate(iv.due):undefined,
         paperwork:ops.amdl?'Solairus AMDL MEL section is filled and offered to the technician (Create Solairus AMDL).':'Deferral sheet is offered to the technician (Create Deferral PDF).',
         reminder:'Tell the technician the deferral is ready to sign, and list the (M) steps, (O) briefing and placard still to complete.'}};
@@ -1507,9 +1507,18 @@ function saveCase(){
   for(;;){try{localStorage.setItem('g600ts_cases',JSON.stringify(cases));break}catch(e){if(cases.length<=1)break;cases.pop()}}
   try{localStorage.setItem('g600ts_current',JSON.stringify(CASE.id))}catch(e){}
 }
+// Recent Cases label: TAIL · ATA CC-SS · MM/DD/YY (case opened)
+function caseListLabel(c){
+  const f=c.form||{};const tail=String(f.reg||'').toUpperCase()||'No Tail';
+  let ata=caseAta(f);
+  if(!ata&&c.deferral&&c.deferral.ata)ata=c.deferral.ata;
+  if(!ata&&c.deferral&&typeof melById==='function'&&typeof MEL!=='undefined'&&MEL){const g=melById(c.deferral.mel_id);if(g&&g.ata)ata=g.ata}
+  const d=new Date(c.created||c.updated);const dt=`${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}/${String(d.getFullYear()).slice(-2)}`;
+  return `${tail} · ATA ${ata||'—'} · ${dt}`;
+}
 $('#btnCases').onclick=()=>{
   const cases=loadCases();
-  showModal('RECENT CASES',cases.length?`<div class="caselist">${cases.map(c=>`<div class="ci"><div class="t" data-id="${c.id}"><div>${esc(c.title)}</div><div>${new Date(c.updated).toLocaleString()} · ${c.msgs.filter(m=>m.role==='assistant').length} replies</div></div><button class="btn2 small danger" data-del="${c.id}">Delete</button></div>`).join('')}</div>`:'<div class="kv">No saved cases on this device yet.</div>');
+  showModal('RECENT CASES',cases.length?`<div class="caselist">${cases.map(c=>`<div class="ci"><div class="t" data-id="${c.id}"><div>${esc(caseListLabel(c))}</div><div>Updated ${new Date(c.updated).toLocaleString()} · ${(n=>n+(n===1?' reply':' replies'))(c.msgs.filter(m=>m.role==='assistant').length)}</div></div><button class="btn2 small danger" data-del="${c.id}">Delete</button></div>`).join('')}</div>`:'<div class="kv">No saved cases on this device yet.</div>');
   $$('.caselist .t').forEach(el=>el.onclick=()=>{CASE=loadCases().find(c=>c.id===el.dataset.id);hideModal();showChat();renderCase()});
   $$('.caselist [data-del]').forEach(b=>b.onclick=()=>{const cs=loadCases().filter(c=>c.id!==b.dataset.del);try{localStorage.setItem('g600ts_cases',JSON.stringify(cs))}catch(e){}if(CASE&&CASE.id===b.dataset.del){CASE=null;showIntake()}$('#btnCases').onclick()});
 };
