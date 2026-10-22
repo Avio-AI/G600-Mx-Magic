@@ -34,7 +34,7 @@ label{font-family:var(--mono);font-size:12px;letter-spacing:1px;color:var(--text
 .synclbl{display:flex!important;gap:8px;align-items:center;text-transform:none!important;letter-spacing:0!important;font-family:var(--sans)!important;font-size:14px!important;color:var(--text)!important;cursor:pointer}
 .synclbl input{width:auto;transform:scale(1.15)}
 input[readonly]{opacity:.65}
-#fReg,#fApt,#exReg{text-transform:uppercase}
+#fReg,#fApt,#exReg,#amReg,#amDefLoc,#amSigLoc{text-transform:uppercase}
 
 #app{display:flex;flex-direction:column;height:100dvh;max-width:min(860px,100vw);width:100%;overflow-x:hidden;margin:0 auto;border-left:1px solid var(--border);border-right:1px solid var(--border)}
 header{padding:calc(12px + var(--safe-t)) calc(16px + env(safe-area-inset-right,0px)) 10px calc(16px + env(safe-area-inset-left,0px));background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0}
@@ -148,6 +148,8 @@ details.think div{font-size:13px;color:var(--text-dim);white-space:pre-wrap;line
 .melbody{font-size:14px;line-height:1.55;overflow-wrap:anywhere}
 .melsec.dim .melbody{color:var(--text-dim)}
 .melcites{margin:12px 0 10px;display:flex;flex-wrap:wrap;gap:6px}
+.btn.small{width:auto;padding:7px 12px;font-size:13px;font-weight:800;border-radius:8px}
+.amh{font-family:var(--mono);font-size:12.5px;letter-spacing:1.5px;color:var(--cyan);font-weight:400;margin:10px 0 8px;text-transform:uppercase}
 .errbox{background:var(--err-bg);border:1px solid var(--err-border);color:var(--err-text);border-radius:8px;padding:10px 12px;font-size:14px;white-space:pre-wrap}
 
 #composer{position:sticky;bottom:0;background:var(--surface);border-top:1px solid var(--border);padding:8px 12px calc(10px + var(--safe-b))}
@@ -337,6 +339,7 @@ mark{background:var(--mark-bg);color:var(--amber-glow);border-radius:2px}
           <div class="field" style="max-width:260px"><label>Day of discovery</label><input id="melDate" type="date"></div>
           <div class="hint">Finds the MMEL relief (Section 1 items and Section 2 CAS messages), who authorizes dispatch under your operating rule, the repair interval, and the Gulfstream MOPP (M) maintenance, (O) operational and placarding procedures. No AI or API key needed.</div>
           <div class="hint" id="melStatus"></div>
+          <button class="btn2 small hidden" id="melAmdlBlank" style="margin-top:10px">Discrepancy-Only AMDL (No Deferral)</button>
         </div>
         <div id="melResults"></div>
       </div>
@@ -1640,7 +1643,9 @@ $('#btnExport').onclick=()=>{
     <div class="hint" id="exTimes" style="margin:-4px 0 12px">${esc(timesLine(f)||'No aircraft / engine times entered for this case.')}</div>
     <button class="btn" id="exPdf">Create PDF</button>
     <div id="exOut" style="margin-top:12px"></div>
-    <button class="btn2" id="exMd" style="width:100%;margin-top:12px">Download Markdown (.md)</button>`);
+    <button class="btn2" id="exMd" style="width:100%;margin-top:12px">Download Markdown (.md)</button>
+    ${(MEL_OPS[cfg.melOps]||{}).amdl?'<button class="btn2" id="exAmdl" style="width:100%;margin-top:12px">Solairus AMDL (Discrepancy)</button>':''}`);
+  if($('#exAmdl'))$('#exAmdl').onclick=()=>{sync();openAmdl({disc:caseDiscrepancy()})};
   const sync=()=>{f.reg=$('#exReg').value.trim().toUpperCase();f.sn=$('#exSn').value.trim();if(f.reg||f.sn)store.set(LAST_AC_KEY,{reg:f.reg,sn:f.sn});saveCase()};
   $('#exMd').onclick=()=>{sync();exportMarkdown()};
   $('#exPdf').onclick=async()=>{
@@ -1673,6 +1678,9 @@ const MEL_OPS={
     preamble:'Preamble: FAA MMEL Policy Letter PL-34 (MMEL and MEL preamble).'},
   '135':{label:'Part 135 — OpSpec D095',fam:'faa',
     basis:'Certificate holder\'s FAA-approved MEL, authorized by Operations Specification (OpSpec) D095 (14 CFR 91.213(c), 135.179).',
+    preamble:'Preamble: FAA MMEL Policy Letter PL-34 (MMEL and MEL preamble).'},
+  '135-solairus':{label:'Part 135 — Solairus Aviation (OpSpec D095)',fam:'faa',amdl:true,
+    basis:'Solairus Aviation\'s FAA-approved MEL, authorized by Operations Specification (OpSpec) D095 (14 CFR 91.213(c), 135.179). Record the discrepancy and the deferral on the Solairus AMDL (Form 502.1).',
     preamble:'Preamble: FAA MMEL Policy Letter PL-34 (MMEL and MEL preamble).'},
   '125':{label:'Part 125 — OpSpec D095',fam:'faa',
     basis:'Operator\'s FAA-approved MEL, authorized by Operations Specification D095 (or the LODA issued to a Part 125 deviation holder) (14 CFR 91.213(c)).',
@@ -1774,7 +1782,7 @@ function melReliefHtml(g,r,i,ops,disc){
     ${sec('o','(O) Operational Procedure','For Flight Crew',r.o,pr.O)}
     ${r.p!==undefined?sec('p','Placarding Procedure','For Maintenance',r.p,true):''}
     <div class="melcites">${melCite('mmel',g.mmel)} ${(r.mopp||[]).map(x=>melCite('mopp',x)).join(' ')}</div>
-    <button class="btn2 small melpdf" data-i="${i}" ${ops.none?'disabled':''}>Create Deferral PDF</button>
+    ${ops.amdl?`<button class="btn small melamdl" data-i="${i}">Create Solairus AMDL</button> `:''}<button class="btn2 small melpdf" data-i="${i}" ${ops.none?'disabled':''}>Create Deferral PDF</button>
   </div>`;
 }
 function renderMelItem(g){
@@ -1793,6 +1801,7 @@ function renderMelItem(g){
   h+=`<div class="disclaimer">From the Gulfstream GVII-G500/G600 MMEL Rev ${esc(MEL.mmel.rev)} and MOPP Rev ${esc(MEL.mopp.rev)} (${esc(MEL.mopp.date)}). Dispatch must follow the operator's own approved MEL and procedures, the AFM limitations, and the current revisions.</div>`;
   $('#melResults').innerHTML=h;
   $$('#melResults .melpdf').forEach(b=>b.onclick=()=>melExport(g,g.rel[+b.dataset.i]));
+  $$('#melResults .melamdl').forEach(b=>b.onclick=()=>{const r=g.rel[+b.dataset.i];openAmdl({disc:g.kind==='cas'?`${g.name}${g.color?' ('+g.color+')':''} CAS message posted.`:`${melTitle(g)}${r.note?' ('+r.note+')':''} inoperative.`,deferral:{g,r}})});
 }
 function renderMelAc(){
   const q=$('#melInput').value.trim(),L=$('#melList');if(!q||!MEL){L.classList.add('hidden');return}
@@ -1806,6 +1815,7 @@ function pickMel(g){if(!g)return;$('#melInput').value=melTitle(g);melIdx=-1;$('#
 async function initMelPane(){
   const sel=$('#melOps');if(!sel.options.length)sel.innerHTML=Object.entries(MEL_OPS).map(([k,v])=>`<option value="${k}" ${k===(cfg.melOps||'91-d195')?'selected':''}>${esc(v.label)}</option>`).join('');
   if(!$('#melDate').value){const d=new Date();$('#melDate').value=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
+  melAmdlBtn();
   try{await loadMel();$('#melStatus').textContent=`MMEL Rev ${MEL.mmel.rev} (${MEL.mmel.date}) · MOPP Rev ${MEL.mopp.rev} · ${MEL.items.length} items · ${MEL.cas.length} CAS messages`}
   catch(e){$('#melStatus').innerHTML=`<span class="warnnote">${esc(e.message||e)}</span>`}
 }
@@ -1817,7 +1827,9 @@ $('#melInput').addEventListener('keydown',e=>{
   else if(e.key==='ArrowUp'){melIdx=Math.max(0,melIdx-1);renderMelAc();e.preventDefault()}
   else if(e.key==='Enter'){e.preventDefault();pickMel(melItems[melIdx>=0?melIdx:0])}
 });
-$('#melOps').onchange=e=>{cfg.melOps=e.target.value;saveCfg();if(melSel)renderMelItem(melSel)};
+function melAmdlBtn(){const b=$('#melAmdlBlank');if(b)b.classList.toggle('hidden',!melOps().amdl)}
+$('#melOps').onchange=e=>{cfg.melOps=e.target.value;saveCfg();melAmdlBtn();if(melSel)renderMelItem(melSel)};
+$('#melAmdlBlank').onclick=()=>openAmdl({disc:caseDiscrepancy()});
 $('#melDate').onchange=()=>{if(melSel)renderMelItem(melSel)};
 
 /* ── MEL deferral PDF ── */
@@ -1892,6 +1904,152 @@ function melExport(g,r){
       if(canShare)$('#exShare').onclick=async()=>{try{await navigator.share({files:[file],title:name})}catch(e){if(e.name!=='AbortError')$('#exOut').insertAdjacentHTML('beforeend',`<div class="errbox" style="margin-top:8px">${esc(e.message)}</div>`)}};
     }catch(e){btn.disabled=false;btn.textContent='Create PDF';$('#exOut').innerHTML=`<div class="errbox">${esc(e.message||String(e))}</div>`}
   };
+}
+
+/* ═════════════════ SOLAIRUS AMDL (Aircraft Maintenance Discrepancy Log, Form 502.1) ═════════════════ */
+// The blank form is stamped, never redrawn: the operator's own PDF (private data repo, forms/solairus_amdl.pdf) is loaded
+// with pdf-lib and the entries are written into its boxes. Coordinates are PDF points from the top-left of the 792 x 612 page.
+const PDFLIB_URL='https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js';
+const FONTKIT_URL='https://cdn.jsdelivr.net/npm/@pdf-lib/fontkit@1.1.1/dist/fontkit.umd.min.js';
+const AMDL_FORM='forms/solairus_amdl.pdf';
+const AMDL_PERSON_KEY='g600ts_amdl_person';
+const AMDL_BOX={ // x, baseline (from top), max width
+  reg:[42,55,115],logno:[667,55,72],aftt:[45,75,113],aftc:[45,95.5,113],date:[46,115.5,112],misc:[44,136,114],
+  mx:[442,116,296],mx2:[384,136,354],
+  initBy:[141,158,92],initDate:[258,158,48],
+  disc:[[312,158,426],[23,177.5,716],[23,197.5,716],[23,217.5,716]],
+  melRef:[160,238,73],aDays:[291,239.5,20],otherDays:[604,239.5,28],exp:[653,238.5,86],
+  defText:[[23,258,716],[23,278.5,716],[23,299,716],[23,318.5,716]],
+  defName:[240,341,174],defCert:[421,341,138],defLoc:[566,341,102],defDate:[675,341,64],
+  corr:[[95,380.5,644],[23,400.5,716],[23,421,716],[23,441,716],[23,461.5,716]],
+  pnOff:[48,482,148],snOff:[228,482,150],pnOn:[407,482,152],snOn:[588,482,152],
+  sigName:[240,503,174],sigCert:[421,503,138],sigLoc:[566,503,102],sigDate:[675,503,64],
+  riiName:[240,523,174],riiCert:[421,523,138],riiLoc:[566,523,102],riiDate:[675,523,64]
+};
+const AMDL_CAT={A:[269.8,232.4],B:[352.6,233.1],C:[422.2,232.9],D:[492.8,233.2],OTHER:[563.7,232.2]}; // checkbox top-left
+let _amdlLib=null;
+function amdlLib(){
+  if(!_amdlLib)_amdlLib=(async()=>{
+    if(!window.PDFLib)await loadScript(PDFLIB_URL);
+    if(!window.fontkit)try{await loadScript(FONTKIT_URL)}catch(e){}
+    let lato=null;try{const b64=await ttfB64(LATO.normal);lato=Uint8Array.from(atob(b64),c=>c.charCodeAt(0))}catch(e){}
+    return {lato};
+  })().catch(e=>{_amdlLib=null;throw e});
+  return _amdlLib;
+}
+const mdy=d=>d?`${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}/${String(d.getFullYear()).slice(-2)}`:'';
+const isoDay=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+function isoToMdy(v){return v?mdy(parseDay(v)):''}
+function oneLine(s){return pclean(String(s||'').replace(/\s*\n\s*/g,' ').replace(/\s{2,}/g,' ').trim())}
+// short MEL text for the deferral lines: "(M) …  (O) …  Placard: …"
+function amdlDeferralText(g,r,ref){
+  const none=s=>!s||/^none required\.?$/i.test(s.trim());
+  const P=[`${g.kind==='cas'?g.name+' CAS':melTitle(g)}${r.qual?' '+r.qual:''}${r.note?' ('+r.note+')':''} deferred IAW ${ref||'MEL'} Cat ${r.cat}.`];
+  if(!none(r.m))P.push('(M) '+oneLine(r.m));
+  if(!none(r.o))P.push('(O) '+oneLine(r.o));
+  if(r.p)P.push('Placard: '+oneLine(r.p));
+  return P.join('  ');
+}
+async function buildAmdl(v){
+  const {lato}=await amdlLib();
+  const {PDFDocument,StandardFonts,rgb}=window.PDFLib;
+  const tpl=await rawFetch(AMDL_FORM);
+  const doc=await PDFDocument.load(tpl);
+  let font;
+  if(lato&&window.fontkit){doc.registerFontkit(window.fontkit);try{font=await doc.embedFont(lato,{subset:true})}catch(e){font=null}}
+  if(!font)font=await doc.embedFont(StandardFonts.Helvetica);
+  const page=doc.getPages()[0],H=page.getHeight(),ink=rgb(.05,.12,.35);
+  const put=(t,[x,y,w],size=9)=>{t=oneLine(t);if(!t)return;let s=size;while(s>5.5&&font.widthOfTextAtSize(t,s)>w)s-=.25;
+    while(t.length>1&&font.widthOfTextAtSize(t,s)>w)t=t.slice(0,-2)+'…';page.drawText(t,{x,y:H-y,size:s,font,color:ink})};
+  // wrap a paragraph over several boxed lines, shrinking the size until it fits
+  const flow=(t,boxes,size=9)=>{t=oneLine(t);if(!t)return '';let s=size,lines;
+    const wrap=s=>{const out=[];let cur='',i=0;for(const w of t.split(' ')){const lim=boxes[Math.min(out.length,boxes.length-1)][2];const nx=cur?cur+' '+w:w;
+      if(font.widthOfTextAtSize(nx,s)<=lim)cur=nx;else{if(cur)out.push(cur);cur=w}}if(cur)out.push(cur);return out};
+    for(;;){lines=wrap(s);if(lines.length<=boxes.length||s<=6)break;s-=.25}
+    lines.slice(0,boxes.length).forEach((ln,i)=>{const b=boxes[i];put(i===boxes.length-1&&lines.length>boxes.length?ln+' …':ln,[b[0],b[1],b[2]],s)});
+    return lines.length>boxes.length?'truncated':''};
+  const B=AMDL_BOX;
+  put(v.reg,B.reg,10);put(v.logno,B.logno);put(v.aftt,B.aftt);put(v.aftc,B.aftc);put(v.date,B.date);put(v.misc,B.misc);
+  if(v.mx){const w=flow(v.mx,[B.mx,B.mx2],8)}
+  put(v.initBy,B.initBy,8.5);put(v.initDate,B.initDate,8.5);
+  const notes=[];
+  if(flow(v.disc,B.disc))notes.push('discrepancy');
+  if(v.deferral){
+    put(v.melRef,B.melRef,8.5);
+    const cat=AMDL_CAT[v.cat];
+    if(cat){page.drawText('X',{x:cat[0]+1.1,y:H-cat[1]-5.6,size:7.5,font,color:ink})}
+    if(v.cat==='A'&&v.aDays)put(v.aDays,B.aDays,8);
+    if(v.cat==='OTHER'&&v.otherDays)put(v.otherDays,B.otherDays,8);
+    put(v.exp,B.exp,8.5);
+    if(flow(v.defText,B.defText,8.5))notes.push('deferral');
+    put(v.defName,B.defName,8.5);put(v.defCert,B.defCert,8.5);put(v.defLoc,B.defLoc,8.5);put(v.defDate,B.defDate,8.5);
+  }
+  if(flow(v.corr,B.corr))notes.push('corrective action');
+  put(v.pnOff,B.pnOff,8.5);put(v.snOff,B.snOff,8.5);put(v.pnOn,B.pnOn,8.5);put(v.snOn,B.snOn,8.5);
+  put(v.sigName,B.sigName,8.5);put(v.sigCert,B.sigCert,8.5);put(v.sigLoc,B.sigLoc,8.5);put(v.sigDate,B.sigDate,8.5);
+  doc.setTitle(`AMDL ${v.reg||''} ${v.logno||''}`.trim());doc.setAuthor(v.initBy||'');doc.setSubject('Solairus Aviation Form 502.1');
+  const bytes=await doc.save();
+  return {blob:new Blob([bytes],{type:'application/pdf'}),notes};
+}
+// open the AMDL form; pre = {disc, deferral:{g,r}} from the MEL tab or a troubleshooting case
+function openAmdl(pre){
+  pre=pre||{};const f=collectForm();const last=store.get(LAST_AC_KEY,null)||{};const me=store.get(AMDL_PERSON_KEY,{})||{};
+  const def=pre.deferral;const disc=parseDay($('#melDate')?.value);const today=new Date();
+  const ref=def?(def.g.kind==='cas'?`MEL CAS - ${def.g.name}`:`MEL ${def.g.ata}-${def.g.seq}${def.g.k.split('-').length>2?'-'+def.g.k.split('-').slice(2).join('-'):''}`):'';
+  const iv=def?melInterval(def.r,melOps(),disc):null;
+  const cat=def?def.r.cat:'';
+  const aDays=def&&cat==='A'?((def.r.rem||def.r.lim||'').match(/within\s+(\d+)\s+(?:consecutive\s+)?(?:calendar|flight)/i)||[])[1]||'':'';
+  const fld=(id,label,val,ph='',extra='')=>`<div class="field"><label>${label}</label><input id="${id}" value="${esc(val||'')}" placeholder="${esc(ph)}" autocomplete="off" ${extra}></div>`;
+  showModal('SOLAIRUS AMDL',`<div class="kv">Solairus Aviation Form 502.1 · Aircraft Maintenance Discrepancy Log. Entries are typed onto the blank form; signatures are left for ink or e-signature.</div>
+    <div class="grid3">${fld('amReg','Reg',(f.reg||last.reg||'').toUpperCase(),'N1KE','autocapitalize="characters"')}${fld('amLog','Log No.','','')}${fld('amDate','Date',mdy(def?disc:today),'MM/DD/YY')}</div>
+    <div class="grid3">${fld('amAftt','AFTT',f.tt,'hrs')}${fld('amAftc','AFTC',f.cyc,'cycles')}${fld('amMisc','Misc',f.apt?`${f.apt}${f.sn?' · S/N '+f.sn:''}`:(f.sn?'S/N '+f.sn:''),'')}</div>
+    <h3 class="amh">Discrepancy</h3>
+    <div class="grid2">${fld('amInitBy','Initiated by',me.initBy||'','Name')}${fld('amInitDate','Date',mdy(def?disc:today),'MM/DD/YY')}</div>
+    <div class="field"><textarea id="amDisc" rows="3">${esc(pre.disc||'')}</textarea></div>
+    ${def?`<h3 class="amh">Deferral</h3>
+    <div class="grid3">${fld('amRef','MEL/CDL/NEF ref',ref,'MEL 34-3')}
+      <div class="field"><label>Cat</label><select id="amCat">${['A','B','C','D','OTHER'].map(c=>`<option ${c===cat?'selected':''}>${c}</option>`).join('')}</select></div>
+      ${fld('amExp','Exp',iv&&iv.due?mdy(iv.due):'','MM/DD/YY')}</div>
+    <div class="grid2">${fld('amADays','Cat A days',aDays,'days')}${fld('amOther','Other days','','days')}</div>
+    <div class="hint" style="margin:-4px 0 8px">${esc(iv?iv.line:'')}</div>
+    <div class="field"><label>Deferral text</label><textarea id="amDef" rows="5">${esc(amdlDeferralText(def.g,def.r,ref))}</textarea></div>
+    <div class="grid2">${fld('amDefName','Deferred by (name)',me.name||'','')}${fld('amDefCert','Certificate #',me.cert||'','')}${fld('amDefLoc','Location',f.apt||me.loc||'','KSJC','autocapitalize="characters"')}${fld('amDefDate','Date',mdy(disc),'MM/DD/YY')}</div>`:''}
+    <details class="more"><summary>▸ Corrective Action, Parts, Return to Service (Optional)</summary>
+      <div class="field"><label>MX performed</label><input id="amMx" autocomplete="off"></div>
+      <div class="field"><label>Corrective action</label><textarea id="amCorr" rows="3"></textarea></div>
+      <div class="grid2">${fld('amPnOff','PN off','')}${fld('amSnOff','SN off','')}${fld('amPnOn','PN on','')}${fld('amSnOn','SN on','')}</div>
+      <div class="grid2">${fld('amSigName','Signed by (name)',me.name||'','')}${fld('amSigCert','Certificate #',me.cert||'','')}${fld('amSigLoc','Location',f.apt||me.loc||'','')}${fld('amSigDate','Date','','MM/DD/YY')}</div>
+    </details>
+    <button class="btn" id="amGo" style="margin-top:8px">Create AMDL</button><div id="amOut" style="margin-top:12px"></div>`);
+  if($('#amCat'))$('#amCat').onchange=e=>{const n=REPAIR_DAYS[e.target.value];if(n&&!melOps().p91)$('#amExp').value=mdy(addDays(disc,n))};
+  $('#amGo').onclick=async()=>{
+    const g=id=>{const e=$('#'+id);return e?e.value.trim():''};
+    const v={reg:g('amReg').toUpperCase(),logno:g('amLog'),date:g('amDate'),aftt:g('amAftt'),aftc:g('amAftc'),misc:g('amMisc'),initBy:g('amInitBy'),initDate:g('amInitDate'),disc:g('amDisc'),
+      deferral:!!def,melRef:g('amRef'),cat:g('amCat'),aDays:g('amADays'),otherDays:g('amOther'),exp:g('amExp'),defText:g('amDef'),defName:g('amDefName'),defCert:g('amDefCert'),defLoc:g('amDefLoc').toUpperCase(),defDate:g('amDefDate'),
+      mx:g('amMx'),corr:g('amCorr'),pnOff:g('amPnOff'),snOff:g('amSnOff'),pnOn:g('amPnOn'),snOn:g('amSnOn'),sigName:g('amSigName'),sigCert:g('amSigCert'),sigLoc:g('amSigLoc').toUpperCase(),sigDate:g('amSigDate')};
+    if(!v.corr&&!v.mx){v.sigName=v.sigCert=v.sigLoc=v.sigDate=''}
+    store.set(AMDL_PERSON_KEY,{initBy:v.initBy,name:v.defName||v.sigName||me.name||'',cert:v.defCert||v.sigCert||me.cert||'',loc:v.defLoc||me.loc||''});
+    if(v.reg)store.set(LAST_AC_KEY,{reg:v.reg,sn:f.sn||last.sn||''});
+    const btn=$('#amGo');btn.disabled=true;btn.textContent='Creating AMDL…';$('#amOut').innerHTML='';
+    try{
+      const {blob,notes}=await buildAmdl(v);
+      const tag=def?(def.g.kind==='cas'?'CAS':`${def.g.ata}-${def.g.seq}`):(caseAta(CASE&&CASE.form)||'DISC');
+      const name=`${[(v.reg||APPNAME).replace(/[^A-Za-z0-9-]/g,''),'AMDL',v.logno.replace(/[^A-Za-z0-9-]/g,'')||null,tag,dateCode(def?disc:today)].filter(Boolean).join('_')}.pdf`;
+      const file=new File([blob],name,{type:'application/pdf'}),url=URL.createObjectURL(blob);
+      btn.textContent='✔ AMDL ready';
+      const canShare=!!(navigator.canShare&&navigator.canShare({files:[file]}));
+      $('#amOut').innerHTML=`${notes.length?`<div class="melrow melwarn">The ${notes.join(' and ')} text is longer than the form's lines and was cut off with "…". Shorten it and create again.</div>`:''}<div class="kv" style="margin-bottom:8px">${esc(name)} · ${(blob.size/1024).toFixed(0)} KB</div>
+        <div class="grid2">${canShare?'<button class="btn" id="amShare">Share / Save</button>':''}<a class="btn2" href="${url}" download="${esc(name)}" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:center;text-decoration:none;${canShare?'':'grid-column:1/-1'}">${canShare?'Open':'Download PDF'}</a></div>`;
+      if(canShare)$('#amShare').onclick=async()=>{try{await navigator.share({files:[file],title:name})}catch(e){if(e.name!=='AbortError')$('#amOut').insertAdjacentHTML('beforeend',`<div class="errbox" style="margin-top:8px">${esc(e.message)}</div>`)}};
+    }catch(e){btn.disabled=false;btn.textContent='Create AMDL';$('#amOut').innerHTML=`<div class="errbox">${esc(/404|not found/i.test(e.message)?'The blank AMDL form (forms/solairus_amdl.pdf) is not in the data repo.':e.message||String(e))}</div>`}
+  };
+}
+function caseDiscrepancy(){
+  const f=(CASE&&CASE.form)||collectForm();const P=[];
+  (f.faults||[]).forEach(x=>P.push(`${x.msg}${x.color?' ('+x.color+')':''} CAS message posted.`));
+  (f.cmc||[]).forEach(x=>P.push(`CMC: ${x.kind==='code'?x.code:x.msg}.`));
+  if(f.desc)P.push(f.desc);
+  return P.join(' ');
 }
 
 /* ═════════════════ DIRECT SEARCH ═════════════════ */
