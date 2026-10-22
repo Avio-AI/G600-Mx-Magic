@@ -407,6 +407,12 @@ mark{background:var(--mark-bg);color:inherit}
 .deferralcard.cleared .melcat{background:#188038}
 .errbox{border-radius:12px;border:none}
 
+/* paint the bottom bar color down to the screen edge (home-indicator area / any gap under the app) */
+html,body{background:linear-gradient(to bottom,var(--bg) 0,var(--bg) 50%,var(--nav) 50%,var(--nav) 100%)}
+html:has(body.inchat),body.inchat{background:var(--bg)}
+.tabs{box-shadow:0 -1px 0 var(--border),0 60px 0 0 var(--nav)}
+#app{background:var(--bg)}
+
 </style>
 </head>
 <body>
