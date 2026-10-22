@@ -425,6 +425,10 @@ main{overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
 :root{--navline:#5e6267}
 .tabs{border-top:1px solid var(--navline);box-shadow:0 60px 0 0 var(--nav)}
 
+/* bottom bar visible on every screen, including an open troubleshooting case */
+body.kb .tabs,body.inchat .tabs{display:flex}
+html:has(body.inchat),body.inchat{background:linear-gradient(to bottom,var(--bg) 0,var(--bg) 50%,var(--nav) 50%,var(--nav) 100%)}
+
 </style>
 </head>
 <body>
@@ -1695,7 +1699,7 @@ function flash(btn,msg){const o=btn.textContent;btn.textContent=msg;btn.disabled
 function resetForm(){selFaults=[];renderFaultChips();selCmc=[];renderCmcChips();$('#cmcInput').value='';['#descText','#fAlt','#fSpd','#fOat','#fCabAlt','#fDp','#fRate','#fOther','#fSn','#fReg','#fApt','#fTT','#fCyc','#fEngHrs','#fEngCyc','#fApuHrs','#fRecent','#fDone','#faultInput'].forEach(i=>$(i).value='');prefillAircraft();$('#timesDetails').open=false;syncEngTimes();['#fPhase','#fBehavior','#fSide'].forEach(i=>$(i).value='');$('#readings').innerHTML='';$('#moreDetails').open=false}
 
 /* ═════════════════ CHAT ═════════════════ */
-function showChat(){$('#intakeView').classList.add('hidden');$('#chatView').classList.remove('hidden');document.body.classList.add('inchat')}
+function showChat(){$('#intakeView').classList.add('hidden');$('#chatView').classList.remove('hidden');document.body.classList.add('inchat');$$('.tab').forEach(x=>x.classList.toggle('on',x.dataset.tab==='describe'))}
 function showIntake(){$('#chatView').classList.add('hidden');$('#intakeView').classList.remove('hidden');document.body.classList.remove('inchat');$('#caseTitle').textContent='';$('#main').scrollTop=0}
 const FOLLOW=['Next check?','Show the wiring','Pins to meter','SSPC / CB?','Ops check','Logbook entry'];
 const FOLLOW_FULL={'Next check?':'What should I check next?','Show the wiring':'Show me the wiring for this','Pins to meter':'Which connector pins / wires do I meter?','SSPC / CB?':'Which SSPC / CB powers this?','Part numbers':'Part numbers for the likely LRU','Ops check':'Ops check after the repair','System logic':'Explain the system logic','Logbook entry':'Summarize for the logbook'};
@@ -1925,6 +1929,13 @@ function fitAppHeight(){
 }
 (function(){
   const nav=document.querySelector('#intakeView .tabs');if(nav)$('#app').appendChild(nav);
+
+  // tabs work from the case conversation too: Describe returns to the open case, the others leave it in the background
+  $$('.tab').forEach(t=>t.addEventListener('click',()=>{
+    const inChat=!$('#chatView').classList.contains('hidden');
+    if(t.dataset.tab==='describe'){if(CASE&&CASE.msgs&&CASE.msgs.length&&!inChat){showChat();$('#caseTitle').textContent=CASE.title?' · '+CASE.title:''}}
+    else if(inChat)showIntake();
+  }));
 
 // top bar and bottom bar never move: a drag that starts on them can't scroll or bounce the page
 ['header','.tabs'].forEach(sel=>{const el=document.querySelector(sel);if(el)el.addEventListener('touchmove',e=>{if(!e.target.closest('.aclist,select,input,textarea'))e.preventDefault()},{passive:false})});
