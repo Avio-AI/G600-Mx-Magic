@@ -1664,8 +1664,8 @@ function caseAta(f){
   const full=list.find(a=>/^\d\d-\d\d/.test(a));if(full)return full.slice(0,5);
   const ch=list.find(a=>/^\d\d/.test(a));return ch?ch.slice(0,2):'';
 }
-function dateCode(d){d=d||new Date();return `${String(d.getDate()).padStart(2,'0')}${MONS[d.getMonth()]}${d.getFullYear()}`}
-// file name: TAIL_ATA_DDMMMYYYY  (e.g. N1KE_21-31_21OCT2026.pdf)
+function dateCode(d){d=d||new Date();return String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0')+String(d.getFullYear()).slice(-2)}
+// file name: TAIL_ATA_MMDDYY  (e.g. N1KE_21-31_102126.pdf)
 function pdfName(meta){const tail=(meta.reg||APPNAME).replace(/[^A-Za-z0-9-]/g,'');return `${[tail,caseAta(CASE.form),dateCode(new Date())].filter(Boolean).join('_')}.pdf`}
 function exportMarkdown(){
   const meta=exportMeta();
