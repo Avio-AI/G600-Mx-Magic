@@ -413,6 +413,12 @@ html:has(body.inchat),body.inchat{background:var(--bg)}
 .tabs{box-shadow:0 -1px 0 var(--border),0 60px 0 0 var(--nav)}
 #app{background:var(--bg)}
 
+/* lock the page: only the content between the top bar and the bottom bar scrolls */
+html,body{position:fixed;inset:0;width:100%;height:100%;overflow:hidden;overscroll-behavior:none}
+#app{position:relative}
+header,.tabs{touch-action:none;overscroll-behavior:none}
+main{overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+
 </style>
 </head>
 <body>
@@ -1913,6 +1919,10 @@ function fitAppHeight(){
 }
 (function(){
   const nav=document.querySelector('#intakeView .tabs');if(nav)$('#app').appendChild(nav);
+
+// top bar and bottom bar never move: a drag that starts on them can't scroll or bounce the page
+['header','.tabs'].forEach(sel=>{const el=document.querySelector(sel);if(el)el.addEventListener('touchmove',e=>{if(!e.target.closest('.aclist,select,input,textarea'))e.preventDefault()},{passive:false})});
+document.addEventListener('scroll',()=>{if(window.scrollY||window.scrollX)window.scrollTo(0,0)},{passive:true});
   fitAppHeight();[50,300,800,1600].forEach(t=>setTimeout(fitAppHeight,t));
   if(window.visualViewport)visualViewport.addEventListener('resize',fitAppHeight);
   window.addEventListener('resize',fitAppHeight);window.addEventListener('orientationchange',()=>setTimeout(fitAppHeight,300));
