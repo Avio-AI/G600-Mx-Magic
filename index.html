@@ -463,6 +463,17 @@ body[data-tab="search"]:not(.inchat) .gsearch{display:flex}
 body[data-tab="search"]:not(.inchat) .badges{display:flex}
 #badges:not([data-err=""]){display:flex}
 
+/* manual/revision chips live in Settings now (a data error still shows in the top bar) */
+body[data-tab="search"]:not(.inchat) .badges{display:none}
+.stbadges{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}
+/* session name row, frozen under the top bar */
+.sessrow{display:flex;align-items:center;gap:8px;margin:8px 0 0;background:var(--panel2);border-radius:12px;height:40px;padding:0 6px 0 12px;color:var(--text-dim)}
+.sessrow .ms{font-size:20px}
+.sessrow input{flex:1;min-width:0;height:100%;background:transparent!important;border:none!important;box-shadow:none!important;padding:0;font-family:var(--display);font-size:15px;font-weight:500;color:var(--text);border-radius:0}
+.sessrow input::placeholder{font-weight:400}
+.sessrow:focus-within{background:var(--surface);box-shadow:0 0 0 1px var(--cyan)}
+header .gsearch{margin-top:8px}
+
 </style>
 </head>
 <body>
@@ -477,6 +488,7 @@ body[data-tab="search"]:not(.inchat) .badges{display:flex}
       <button class="iconbtn" id="btnTheme" title="Theme" aria-label="Theme"><span class="ms">brightness_auto</span></button>
       <button class="iconbtn" id="btnSettings" title="Settings"><span class="ms">settings</span></button>
     </div>
+    <div class="sessrow"><span class="ms">edit_note</span><input id="sessName" placeholder="Name this session" maxlength="80" autocomplete="off" spellcheck="false" enterkeyhint="done" aria-label="Session name"></div>
     <div class="gsearch" id="gSearch"><span class="ms">search</span></div>
     <div class="badges" id="badges"><span class="badge">LOADING MANUAL INDEX…</span></div>
   </header>
@@ -1274,6 +1286,7 @@ function renderCase(){
     }
   }
   $('#caseTitle').textContent=CASE.title?' · '+CASE.title:'';
+  syncSessName();
   {const slots=$$('#chatLog .deferralslot');if(slots.length&&(CASE.deferral||CASE.clearing))loadMel().then(()=>{const c=deferralCard();if(c)slots[slots.length-1].replaceWith(c)}).catch(()=>{})}
   renderFollowChips();
   requestAnimationFrame(()=>{stickBottom=true;autoScroll()});
@@ -1604,6 +1617,7 @@ function openSettings(note){
   $('#stTheme').onchange=e=>setTheme(e.target.value);
   const sync=()=>{const gh=$('#stMode').value==='github';$('#stGh').classList.toggle('hidden',!gh);$('#stUrl').classList.toggle('hidden',gh)};sync();$('#stMode').onchange=sync;
   if(DATA.manifest)$('#stAbout').innerHTML=`<b>Library:</b> ${esc(DATA.manifest.aircraft)} · index built ${esc(dmyStr(DATA.manifest.built))}<br>${Object.entries(DATA.manifest.revisions).map(([k,v])=>`${k}: ${esc(dmyStr(v))}`).join(' · ')}<br><b>Known gaps:</b> ${DATA.manifest.gaps.map(esc).join(' · ')}`;
+  {const ab=$('#stAbout'),bd=$('#badges');if(ab&&bd&&!bd.dataset.err){const d=document.createElement('div');d.className='stbadges';d.innerHTML=bd.innerHTML;ab.prepend(d)}}
   $('#stSave').onclick=async()=>{
     Object.assign(cfg,{anthropicKey:$('#stKey').value.trim(),model:$('#stModel').value,thinking:$('#stThink').checked,dataMode:$('#stMode').value,dataRepo:$('#stRepo').value.trim(),dataBranch:$('#stBranch').value.trim()||'main',githubToken:$('#stTok').value.trim(),dataUrl:$('#stDataUrl').value.trim(),remember:$('#stRemember').checked});
     saveCfg();DATA.shards.clear();DATA.pins.clear();DATA.comps=null;$('#stStatus').textContent='Connecting…';
@@ -1620,6 +1634,7 @@ function openSettings(note){
   };
 }
 function setDot(s){$('#dataDot').className='dot '+s}
+function syncSessName(){const sn=$('#sessName');if(!sn)return;if(!CASE){sn.placeholder='Name this session';return}if(!CASE.autoTitle&&!CASE.named)CASE.autoTitle=CASE.title;sn.value=CASE.named?CASE.title:'';sn.placeholder=CASE.named?'Name this session':(CASE.autoTitle||CASE.title||'Name this session')}
 function renderAiBadge(){const a=$('#aiBadge');if(!a)return;const ok=!!cfg.anthropicKey;a.className='aib '+(ok?'ok':'off');a.textContent=ok?'AI READY':'NO API KEY';a.title=ok?'Claude API key set':'Add your Anthropic API key in Settings'}
 function renderBadges(err){renderAiBadge();
   const b=$('#badges');b.dataset.err=err||'';
@@ -1728,6 +1743,7 @@ $('#btnStart').onclick=async()=>{
   f.cmc.forEach(x=>(x.refs||[]).forEach(r=>registerSource({cite:r[2],doc_id:r[0],pdf_page:r[1]})));
   const title=shortTitle(f);
   CASE={id:Date.now().toString(36),title,created:Date.now(),updated:Date.now(),form:f,usage:{in:0,out:0},msgs:[{role:'user',content:[{type:'text',text}]}]};
+  {const n=$('#sessName')?$('#sessName').value.trim():'';CASE.autoTitle=CASE.title;if(n){CASE.title=n;CASE.named=true}}
   showChat();renderCase();saveCase();runAgent();
 };
 function flash(btn,msg){const o=btn.textContent;btn.textContent=msg;btn.disabled=true;setTimeout(()=>{btn.textContent=o;btn.disabled=false},1600)}
@@ -1772,7 +1788,7 @@ function caseListLabel(c){
 }
 $('#btnCases').onclick=()=>{
   const cases=loadCases();
-  showModal('RECENT CASES',cases.length?`<div class="caselist">${cases.map(c=>`<div class="ci"><div class="t" data-id="${c.id}"><div>${esc(caseListLabel(c))}</div><div>Updated ${dmyt(c.updated)} · ${(n=>n+(n===1?' reply':' replies'))(c.msgs.filter(m=>m.role==='assistant').length)}</div></div><button class="btn2 small danger" data-del="${c.id}">Delete</button></div>`).join('')}</div>`:'<div class="kv">No saved cases on this device yet.</div>');
+  showModal('RECENT CASES',cases.length?`<div class="caselist">${cases.map(c=>`<div class="ci"><div class="t" data-id="${c.id}"><div>${esc(caseListLabel(c))}</div><div>${c.named?esc(c.title)+' · ':''}Updated ${dmyt(c.updated)} · ${(n=>n+(n===1?' reply':' replies'))(c.msgs.filter(m=>m.role==='assistant').length)}</div></div><button class="btn2 small danger" data-del="${c.id}">Delete</button></div>`).join('')}</div>`:'<div class="kv">No saved cases on this device yet.</div>');
   $$('.caselist .t').forEach(el=>el.onclick=()=>{CASE=loadCases().find(c=>c.id===el.dataset.id);hideModal();showChat();renderCase()});
   $$('.caselist [data-del]').forEach(b=>b.onclick=()=>{const cs=loadCases().filter(c=>c.id!==b.dataset.del);try{localStorage.setItem('g600ts_cases',JSON.stringify(cs))}catch(e){}if(CASE&&CASE.id===b.dataset.del){CASE=null;showIntake()}$('#btnCases').onclick()});
 };
@@ -1904,7 +1920,7 @@ function shortTitle(f){
 }
 function exportMeta(){
   const f=CASE.form||{};
-  return {reg:(f.reg||'').toUpperCase(),sn:f.sn||'',apt:(f.apt||'').toUpperCase(),times:timesLine(f),title:CASE.form&&(CASE.form.faults||CASE.form.desc)?shortTitle(CASE.form):(CASE.title||'Troubleshooting case'),opened:dmyt(CASE.created),model:cfg.model};
+  return {reg:(f.reg||'').toUpperCase(),sn:f.sn||'',apt:(f.apt||'').toUpperCase(),times:timesLine(f),title:CASE.named?CASE.title:CASE.form&&(CASE.form.faults||CASE.form.desc)?shortTitle(CASE.form):(CASE.title||'Troubleshooting case'),opened:dmyt(CASE.created),model:cfg.model};
 }
 function caseAta(f){
   // ATA chapter-subchapter from the first CAS / CMC entry that has one, else the chapter alone
@@ -1964,6 +1980,12 @@ function fitAppHeight(){
 }
 (function(){
   const nav=document.querySelector('#intakeView .tabs');if(nav)$('#app').appendChild(nav);
+
+  // session name: names the open case (or the next one you start); saved with the case
+  const sn=$('#sessName');
+  if(sn){sn.addEventListener('input',()=>{if(!CASE)return;const v=sn.value.trim();CASE.title=v||CASE.autoTitle||CASE.title;CASE.named=!!v;saveCase()});
+    sn.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();sn.blur()}});
+    $('#btnNew').addEventListener('click',()=>{sn.value='';sn.placeholder='Name this session'});syncSessName()}
 
   // tabs work from the case conversation too: Describe returns to the open case, the others leave it in the background
   $$('.tab').forEach(t=>t.addEventListener('click',()=>{
