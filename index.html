@@ -480,6 +480,7 @@ header .gsearch{margin-top:8px}
 
 /* fleet: MEL-only aircraft (no manuals loaded yet) */
 body.melonly .tab[data-tab=describe],body.melonly .tab[data-tab=search],body.melonly .tab[data-tab=wiring],body.melonly #btnNew,body.melonly #btnCases,body.melonly #btnExport,body.melonly .sessrow,body.melonly .gsearch,body.melonly #aiBadge{display:none!important}
+.melopthd{font-size:13.5px;line-height:1.4;margin:0 0 8px;color:var(--text)}.melopthd b{color:var(--cyan);font-weight:500}
 </style>
 </head>
 <body>
@@ -2195,8 +2196,13 @@ function melReliefHtml(g,r,i,ops,disc){
   const sec=(cls,title,who,body,req)=>`<div class="melsec ${cls}${none(body)?' dim':''}"><div class="melsh"><span>${title}</span><span class="melwho">${who}</span>${req?'<span class="melreq">REQUIRED</span>':''}</div><div class="melbody">${none(body)?'None required.':melText(body)}</div></div>`;
   const er=/except for er operations/i.test(r.rem||r.lim||'');
   const head=`<div class="melopt"><span class="melcat cat${esc(r.cat)}">CAT ${esc(r.cat)}</span>${r.inst!=null?`<span class="melnum">Installed ${esc(r.inst||'—')} · Required ${esc(r.req||'—')}</span>`:''}${r.auth?`<span class="melauth">&lt;${esc(r.auth)}&gt;</span>`:''}${r.qual?`<span class="melnum">${esc(r.qual)}</span>`:''}${r.note?`<span class="melnum">${esc(r.note)}</span>`:''}</div>`;
+  const nopt=g.rel.length;let optl='';
+  if(nopt>1){const L=String(r.rem||r.lim||'').split('\n').map(x=>x.trim()).filter(Boolean);let t=(L[0]||'').replace(/^(\((M|O)\)\s*)+/,'').replace(/:$/,'');
+    if(/provided$/i.test(t)&&L[1])t+=': '+L[1].replace(/^[a-z]\)\s*/,'').replace(/[,;]?\s*(and|or)?$/,'');
+    else if(!t&&r.qual)t=r.qual;t=t.length>110?t.slice(0,108)+'…':t;
+    optl=`<div class="melopthd"><b>Option ${i+1} of ${nopt}</b>${t?' — '+esc(t):''}</div>`}
   return `<div class="card melcard" data-i="${i}">
-    ${head}
+    ${optl}${head}
     ${r.moppv?`<div class="hint" style="margin-top:6px">Category / installed / required are from the MMEL Rev ${esc(MEL.mmel.rev)}. The MOPP shows ${esc(r.moppv)}; the MMEL governs.</div>`:''}
     <div class="melint">${esc(iv.line)}${iv.due?`<br><b>Repair by end of ${esc(fmtDate(iv.due))}</b>`:''}</div>
     ${er?'<div class="melrow melwarn" style="margin:8px 0 0">Not for ER operations (extended range: Part 135 flights with a single-engine cruise segment over 180 minutes; EASA ER as approved by the State of the Operator).</div>':''}
