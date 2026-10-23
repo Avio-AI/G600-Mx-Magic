@@ -587,13 +587,13 @@ header .gsearch{margin-top:8px}
       <!-- MEL DISPATCH RELIEF -->
       <div id="melPane" class="hidden">
         <div class="card">
-          <h3>MEL dispatch relief</h3>
+          <h3>MEL Dispatch Relief</h3>
           <div class="ac">
             <input id="melInput" placeholder="Inoperative item or CAS message, e.g. Pack, TSC, ADS 1-2-3-4 Dgrd, 21-4" autocomplete="off" autocapitalize="words" spellcheck="false">
             <div class="aclist hidden" id="melList"></div>
           </div>
           <div class="field" style="margin-top:10px"><label>Operating rule</label><select id="melOps"></select></div>
-          <div class="field" style="max-width:300px"><label>Day of discovery</label><div style="display:flex;gap:6px"><input id="melDate" placeholder="21 OCT 2026" autocapitalize="characters" autocomplete="off" spellcheck="false" style="text-transform:uppercase"><button class="btn2 small" id="melDateBtn" type="button" title="Pick a date" style="position:relative;overflow:hidden">📅<input id="melDatePick" type="date" tabindex="-1" style="position:absolute;inset:0;opacity:0;width:100%;height:100%"></button></div></div>
+          <div class="field" style="max-width:300px"><label>Day of Discovery</label><div style="display:flex;gap:6px"><input id="melDate" placeholder="21 OCT 2026" autocapitalize="characters" autocomplete="off" spellcheck="false" style="text-transform:uppercase"><button class="btn2 small" id="melDateBtn" type="button" title="Pick a date" style="position:relative;overflow:hidden">📅<input id="melDatePick" type="date" tabindex="-1" style="position:absolute;inset:0;opacity:0;width:100%;height:100%"></button></div></div>
           <div class="hint">Finds the MMEL relief (Section 1 items and Section 2 CAS messages), who authorizes dispatch under your operating rule, the repair interval, and the Gulfstream MOPP (M) maintenance, (O) operational and placarding procedures. No AI or API key needed.</div>
           <div class="hint" id="melStatus"></div>
           <button class="btn2 small hidden" id="melAmdlBlank" style="margin-top:10px">Discrepancy-Only AMDL (No Deferral)</button>
