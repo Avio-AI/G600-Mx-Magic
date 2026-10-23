@@ -1631,6 +1631,7 @@ function openSettings(note){
   <div id="stUrl" class="field"><label>Data URL</label><input id="stDataUrl" value="${esc(cfg.dataUrl)}"></div>
   <div class="field"><label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;font-family:var(--sans);font-size:14px;color:var(--text)"><input type="checkbox" id="stRemember" style="width:auto" ${cfg.remember?'checked':''}> Remember keys on this device</label>
   <div class="hint">Keys are stored only in this browser and sent only to api.anthropic.com and api.github.com. Untick on shared devices; keys then clear when the tab closes.</div></div>
+  ${sySettingsHtml()}
   <button class="btn" id="stSave">Save &amp; connect</button>
   <div id="stStatus" class="hint" style="margin-top:10px"></div>
   <hr style="border:none;border-top:1px solid var(--border);margin:14px 0">
@@ -1644,6 +1645,7 @@ function openSettings(note){
   if(DATA.manifest)$('#stAbout').innerHTML=`<b>Library:</b> ${esc(DATA.manifest.aircraft)} · index built ${esc(dmyStr(DATA.manifest.built))}<br>${Object.entries(DATA.manifest.revisions).map(([k,v])=>`${k}: ${esc(dmyStr(v))}`).join(' · ')}<br><b>Known gaps:</b> ${DATA.manifest.gaps.map(esc).join(' · ')}`;
   {const ab=$('#stAbout'),bd=$('#badges');if(ab&&bd&&!bd.dataset.err){const d=document.createElement('div');d.className='stbadges';d.innerHTML=bd.innerHTML;ab.prepend(d)}}
   $('#stSave').onclick=async()=>{
+    syFromSettings();
     Object.assign(cfg,{anthropicKey:$('#stKey').value.trim(),model:$('#stModel').value,thinking:$('#stThink').checked,dataMode:$('#stMode').value,dataRepo:FC?cfg.dataRepo:$('#stRepo').value.trim(),dataBranch:FC?cfg.dataBranch:($('#stBranch').value.trim()||'main'),githubToken:$('#stTok').value.trim(),dataUrl:$('#stDataUrl').value.trim(),remember:$('#stRemember').checked});
     saveCfg();DATA.shards.clear();DATA.pins.clear();DATA.comps=null;$('#stStatus').textContent='Connecting…';
     await loadCore();
@@ -1821,6 +1823,125 @@ $('#btnNew').onclick=()=>{if(BUSY)ABORT?.abort();CASE=null;try{localStorage.remo
 const APPNAME=(FC&&FC.name)||'G600',SN_HINT='731xx',LAST_AC_KEY=PFX+'_lastac';
 function prefillAircraft(){const l=store.get(LAST_AC_KEY,null);if(l){if(!$('#fReg').value)$('#fReg').value=l.reg||'';if(!$('#fSn').value)$('#fSn').value=l.sn||''}}
 prefillAircraft();
+/* ═════════════════ CASE SYNC (private GitHub repo: the same case history on every device) ═════════════════ */
+// cases/<TYPE>/<id>.json in the cases repo, one commit per save. Settings are shared by every aircraft type on this site.
+const SY_PFX=(typeof PFX!=='undefined')?PFX:'g550ts';
+const SY_AC=(typeof FC!=='undefined'&&FC&&FC.name)||APPNAME;
+const SY_DEF={on:false,repo:'Avio-AI/Mx-Magic-Cases',token:'',tech:'',dev:''};
+function syCfg(){const c={...SY_DEF,...store.get('mxm_sync',{})};if(!c.dev){c.dev=Math.random().toString(36).slice(2,8);store.set('mxm_sync',c)}return c}
+function syTok(){const c=syCfg();return c.token||cfg.githubToken}
+function syOn(){const c=syCfg();return !!(c.on&&c.repo&&syTok())}
+const SY_IDX=SY_PFX+'_syncidx',SY_DIRTY=SY_PFX+'_syncdirty';
+const SY={err:'',busy:null,pulled:0};
+function syIdx(){return store.get(SY_IDX,{})}
+function sySetIdx(i){store.set(SY_IDX,i)}
+function syDirty(){return store.get(SY_DIRTY,[])}
+function syMark(id,on){const d=syDirty().filter(x=>x!==id);if(on)d.push(id);store.set(SY_DIRTY,d)}
+function syPath(id){return `cases/${SY_AC}/${id}.json`}
+function b64utf8(s){const u=new TextEncoder().encode(s);let b='';for(let i=0;i<u.length;i+=0x8000)b+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000));return btoa(b)}
+async function syApi(path,{method='GET',body=null,raw=false}={}){
+  return fetch(`https://api.github.com/repos/${syCfg().repo}/contents/${path}`,{method,body,cache:'no-store',
+    headers:{Authorization:`Bearer ${syTok()}`,Accept:raw?'application/vnd.github.raw':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28',...(body?{'Content-Type':'application/json'}:{})}});
+}
+function syErr(r){return r.status===401?'Case sync: token invalid or expired':r.status===403?'Case sync: the token cannot write to the cases repo (needs Contents: Read and write)':r.status===404?'Case sync: cases repo not found, or the token has no access to it':`Case sync: GitHub ${r.status}`}
+function syMeta(c,sha){const f=c.form||{};let ata='';try{ata=caseAta(f)}catch(e){}
+  return {sha,created:c.created,updated:c.updated,reg:String(f.reg||'').toUpperCase(),ata:ata||(c.deferral&&c.deferral.ata)||'',title:c.title||'',named:!!c.named,
+    replies:(c.msgs||[]).filter(m=>m.role==='assistant').length,by:c.by||'',editedBy:c.editedBy||'',def:!!c.deferral,clr:!!c.clearing}}
+function syStoreLocal(c){let cs=loadCases().filter(x=>x.id!==c.id);cs.push(c);cs.sort((a,b)=>(b.updated||0)-(a.updated||0));cs=cs.slice(0,20);
+  for(;;){try{localStorage.setItem(SY_PFX+'_cases',JSON.stringify(cs));break}catch(e){if(cs.length<=1)break;cs.pop()}}}
+async function syFetch(id){const r=await syApi(syPath(id),{raw:true});if(!r.ok)throw new Error(syErr(r));return JSON.parse(await r.text())}
+async function syShaOf(id){const r=await syApi(syPath(id));if(r.status===404)return null;if(!r.ok)throw new Error(syErr(r));return (await r.json()).sha}
+async function syPush(c){
+  let sha=(syIdx()[c.id]||{}).sha||null;const sc=syCfg();
+  for(let n=0;n<3;n++){
+    const msg=`${SY_AC} ${(c.form&&c.form.reg)||''} · ${c.title||c.id}${c.editedBy?' · '+c.editedBy:''}`.replace(/\s+/g,' ').slice(0,120);
+    const r=await syApi(syPath(c.id),{method:'PUT',body:JSON.stringify({message:msg,content:b64utf8(JSON.stringify(c)),...(sha?{sha}:{})})});
+    if(r.ok){const j=await r.json();const i=syIdx();i[c.id]=syMeta(c,j.content.sha);sySetIdx(i);syMark(c.id,false);return}
+    if(r.status===409||r.status===422){ // changed on another device: the newer copy wins
+      sha=await syShaOf(c.id);if(!sha)continue;
+      const remote=await syFetch(c.id);
+      if((remote.updated||0)>(c.updated||0)){syStoreLocal(remote);const i=syIdx();i[c.id]=syMeta(remote,sha);sySetIdx(i);syMark(c.id,false);
+        if(CASE&&CASE.id===c.id&&!BUSY){CASE=remote;renderCase()}return}
+      continue}
+    throw new Error(syErr(r));
+  }
+}
+async function syFlush(){
+  if(!syOn())return;if(SY.busy)return SY.busy;
+  let done;SY.busy=new Promise(r=>done=r);syStat();
+  try{for(let pass=0;pass<3&&syDirty().length;pass++)for(const id of syDirty()){const c=loadCases().find(x=>x.id===id);if(c)await syPush(c);else syMark(id,false)}SY.err=''}
+  catch(e){SY.err=String(e.message||e)}finally{SY.busy=null;done();syStat()}
+}
+async function syPull(){
+  if(!syOn())return;
+  const r=await syApi(`cases/${SY_AC}`);let files=[];
+  if(r.ok)files=(await r.json()).filter(f=>f.type==='file'&&f.name.endsWith('.json'));else if(r.status!==404)throw new Error(syErr(r));
+  const idx=syIdx(),seen=new Set(),loc=loadCases(),dirty=new Set(syDirty());
+  const todo=[];
+  for(const f of files){const id=f.name.slice(0,-5);seen.add(id);if(!idx[id]||idx[id].sha!==f.sha)todo.push([id,f.sha])}
+  for(let k=0;k<todo.length;k+=4)await Promise.all(todo.slice(k,k+4).map(async([id,sha])=>{
+    const remote=await syFetch(id);const l=loadCases().find(x=>x.id===id);
+    if(l&&(l.updated||0)>(remote.updated||0)){syMark(id,true);idx[id]={...syMeta(l,sha)};return}
+    idx[id]=syMeta(remote,sha);if(!dirty.has(id)){syStoreLocal(remote);if(CASE&&CASE.id===id&&!BUSY&&(remote.updated||0)>(CASE.updated||0)){CASE=remote;renderCase()}}}));
+  // removed on another device
+  for(const id of Object.keys(idx))if(!seen.has(id)&&!dirty.has(id)){delete idx[id];const cs=loadCases().filter(x=>x.id!==id);try{localStorage.setItem(SY_PFX+'_cases',JSON.stringify(cs))}catch(e){}}
+  sySetIdx(idx);
+  // cases made on this device that are not in the repo yet (incl. history from before sync was turned on)
+  for(const c of loc)if(!seen.has(c.id)&&!idx[c.id])syMark(c.id,true);
+  SY.pulled=Date.now();await syFlush();
+}
+async function syDelete(id){
+  if(!syOn())return;const sha=(syIdx()[id]||{}).sha||await syShaOf(id);
+  if(sha){const r=await syApi(syPath(id),{method:'DELETE',body:JSON.stringify({message:`${SY_AC} delete case ${id}${syCfg().tech?' · '+syCfg().tech:''}`,sha})});if(!r.ok&&r.status!==404)throw new Error(syErr(r))}
+  const i=syIdx();delete i[id];sySetIdx(i);syMark(id,false);
+}
+function syStat(){const c=syCfg();
+  const html=!c.on?'Case history is on this device only. Turn on <b>Sync Case History</b> in Settings to see it on every device.':!syTok()?'Case sync is on but no token is set (Settings).':
+    SY.err?`<span style="color:var(--red)">${esc(SY.err)}</span>`:SY.busy?'Syncing…':`Synced with ${esc(c.repo)}${SY.pulled?' · '+dmyt(SY.pulled):''}${syDirty().length?' · '+syDirty().length+' waiting to upload':''}`;
+  for(const id of ['#syStat','#syStat2']){const e=$(id);if(e)e.innerHTML=html}}
+// every save also goes to the cases repo (debounced)
+const _syLocalSave=saveCase;let _syT=null;
+saveCase=function(){
+  if(CASE&&syOn()){const t=syCfg().tech;if(!CASE.by&&t)CASE.by=t;if(t)CASE.editedBy=t}
+  _syLocalSave();
+  if(!CASE||!syOn())return;syMark(CASE.id,true);clearTimeout(_syT);_syT=setTimeout(()=>syFlush(),1500);
+};
+// Recent Cases: this device + every synced device
+function syAll(){
+  const loc=loadCases(),ids=new Set(loc.map(c=>c.id)),idx=syIdx();
+  const rem=Object.entries(idx).filter(([id])=>!ids.has(id)).map(([id,m])=>({id,remote:true,m,created:m.created,updated:m.updated,named:m.named,title:m.title,by:m.by}));
+  return [...loc,...rem].sort((a,b)=>(b.updated||0)-(a.updated||0));
+}
+function syLabel(c){if(!c.remote)return caseListLabel(c);const m=c.m;return `${m.reg||'No Tail'} · ATA ${m.ata||'—'} · ${dmy(new Date(m.created||m.updated))}`}
+function syRenderCases(){
+  const cases=syAll();const reps=c=>c.remote?c.m.replies:(c.msgs||[]).filter(m=>m.role==='assistant').length;
+  showModal('RECENT CASES',`<div class="hint" id="syStat" style="margin:0 0 6px"></div>`+(cases.length?`<div class="caselist">${cases.map(c=>`<div class="ci"><div class="t" data-id="${c.id}"><div>${esc(syLabel(c))}</div><div>${c.named?esc(c.title)+' · ':''}Updated ${dmyt(c.updated)} · ${(n=>n+(n===1?' reply':' replies'))(reps(c))}${c.by?' · '+esc(c.by):''}${c.remote?' · <span class="ms" style="font-size:14px;vertical-align:-2px" title="Saved on another device">cloud</span>':''}</div></div><button class="btn2 small danger" data-del="${c.id}">Delete</button></div>`).join('')}</div>`:'<div class="kv">No saved cases yet.</div>'));
+  syStat();
+  $$('.caselist .t').forEach(el=>el.onclick=async()=>{
+    let c=loadCases().find(x=>x.id===el.dataset.id);
+    if(!c){el.style.opacity=.5;try{c=await syFetch(el.dataset.id);syStoreLocal(c)}catch(e){SY.err=e.message;syStat();el.style.opacity=1;return}}
+    CASE=c;try{localStorage.setItem(SY_PFX+'_current',JSON.stringify(c.id))}catch(e){}hideModal();showChat();renderCase()});
+  $$('.caselist [data-del]').forEach(b=>b.onclick=async()=>{const id=b.dataset.del;
+    const cs=loadCases().filter(c=>c.id!==id);try{localStorage.setItem(SY_PFX+'_cases',JSON.stringify(cs))}catch(e){}
+    if(CASE&&CASE.id===id){CASE=null;showIntake()}
+    try{await syDelete(id)}catch(e){SY.err=e.message}syRenderCases()});
+}
+$('#btnCases').onclick=()=>{syRenderCases();if(syOn()){syPull().then(()=>{if(/recent cases/i.test($('#modalTitle').textContent))syRenderCases()}).catch(e=>{SY.err=String(e.message||e);syStat()})}};
+function sySettingsHtml(){const c=syCfg();let person='';try{person=(store.get(SY_PFX+'_amdl_person',null)||store.get('g600ts_amdl_person',null)||{}).name||''}catch(e){}
+  return `<hr style="border:none;border-top:1px solid var(--border);margin:14px 0">
+  <div class="field"><label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;font-family:var(--sans);font-size:14px;color:var(--text)"><input type="checkbox" id="sySync" style="width:auto" ${c.on?'checked':''}> Sync Case History Across Devices</label>
+  <div class="hint">Saves every case to a private GitHub repo so Recent Cases is the same on your phone, tablet and computer, for every aircraft type.</div></div>
+  <div class="field"><label>Technician Name</label><input id="syTech" value="${esc(c.tech||person)}" placeholder="Shown on the cases you start or edit" autocapitalize="words"></div>
+  <div class="grid2"><div class="field"><label>Cases repo (owner/name)</label><input id="syRepo" value="${esc(c.repo)}"></div>
+  <div class="field"><label>Case sync token</label><input id="syTok" type="password" value="${esc(c.token)}" placeholder="github_pat_…" autocomplete="off"></div></div>
+  <div class="hint">Fine-grained token with <b>Contents: Read and write</b> on the cases repo only (your manual data token stays read-only). Leave blank to use the manual data token.</div>
+  <div class="hint" id="syStat2"></div>`+(setTimeout(syStat,0),'')}
+function syFromSettings(){const e=$('#sySync');if(!e)return;const c=syCfg();
+  Object.assign(c,{on:e.checked,tech:$('#syTech').value.trim(),repo:$('#syRepo').value.trim()||SY_DEF.repo,token:$('#syTok').value.trim()});store.set('mxm_sync',c);SY.err='';
+  if(syOn())syPull().catch(e=>{SY.err=String(e.message||e);syStat()})}
+window.addEventListener('online',()=>syFlush());
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&syOn()&&Date.now()-SY.pulled>60000)syPull().catch(e=>{SY.err=String(e.message||e)})});
+setTimeout(()=>{if(syOn())syPull().catch(e=>{SY.err=String(e.message||e)})},2500);
 /* ═════════════════ PDF EXPORT ═════════════════ */
 const PDFLIB='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
 const LATO={normal:'https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/lato/Lato-Regular.ttf',bold:'https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/lato/Lato-Bold.ttf'};
