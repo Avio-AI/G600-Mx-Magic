@@ -1,4 +1,19 @@
-# G600 Mx Magic
+# Mx Magic
+
+**One app for the fleet: https://avio-ai.github.io/G600-Mx-Magic/** — tap the model name in the top bar to switch aircraft.
+
+| Type | App code | Data (private) | Tabs |
+|---|---|---|---|
+| G600 | `g600.html` (this repo) | `Avio-AI/G600-Manual-Database` | Describe, Search, MEL, Wiring |
+| G550 | `/G550-troubleshooter/index.html` | `Avio-AI/G550-manual-data` | Describe, Search, MEL |
+| G650 | `g600.html` on a MEL-only profile | `Avio-AI/Gulfstream-MEL-Data` `g650/` | MEL |
+| G700 / G800 | `g600.html` on a MEL-only profile | `Avio-AI/Gulfstream-MEL-Data` `g700/` | MEL |
+
+`index.html` is the fleet shell: it loads the chosen aircraft's app into the page with its profile (storage prefix, data repo / folder, local PDF folder). Each type keeps its own settings and cases. `fleet/` redirects here.
+
+The G600 app below can still be opened on its own at `/G600-Mx-Magic/g600.html`.
+
+## G600
 
 AI-assisted fault isolation for the Gulfstream G600 (GVII-G600), grounded in the aircraft's own maintenance data: AMM, SDM, iWDM, IPC, SWPM, FlightSafety G500/G600 MTM and the engine run checklist.
 
@@ -11,12 +26,12 @@ AI-assisted fault isolation for the Gulfstream G600 (GVII-G600), grounded in the
 
 ## Architecture
 
-This repo holds only the app (one static `index.html`) and contains **no manual content**. The manual index lives in a separate **private** repo (`G600-Manual-Database`). The app reads it through the GitHub API with a read-only token entered on the device. AI calls go straight from the browser to `api.anthropic.com` with your own API key. There is no server.
+This repo holds only the apps (static `index.html` fleet shell + `g600.html`) and contains **no manual content**. The manual index lives in a separate **private** repo (`G600-Manual-Database`). The app reads it through the GitHub API with a read-only token entered on the device. AI calls go straight from the browser to `api.anthropic.com` with your own API key. There is no server.
 
 ## Setup
 
 1. **Pages**: Settings → Pages → Deploy from branch → `main` / root. The app runs at `https://<owner>.github.io/<repo>/`.
-2. **Token**: GitHub → Settings → Developer settings → Fine-grained tokens → new token. Set Repository access to *Only* `G600-Manual-Database` and Permissions to **Contents: Read-only**. (One token can also cover `G550-Manual-Data` if you want to use the same token for both apps.)
+2. **Token**: GitHub → Settings → Developer settings → Fine-grained tokens → new token. Set Repository access to *Only* `G600-Manual-Database` and Permissions to **Contents: Read-only**. One token can cover all the data repos: add `G550-manual-data` and `Gulfstream-MEL-Data`.
 3. Open the app → ⚙ Settings: enter the Anthropic API key, the data repo (`Avio-AI/G600-Manual-Database`) and the token.
 4. On iPhone, use Share → "Add to Home Screen" for full-screen use. Pinch zoom is disabled. Schematics have their own zoom buttons.
 
