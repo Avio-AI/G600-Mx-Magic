@@ -435,13 +435,36 @@ html:has(body.inchat),body.inchat{background:linear-gradient(to bottom,var(--bg)
 .view{padding-bottom:16px}
 .sheetbd{padding-bottom:calc(16px + var(--safe-b))}
 
+/* search pill: Search tab only, and it is the search box */
+.gsearch{display:none;cursor:text}
+body[data-tab="search"]:not(.inchat) .gsearch{display:flex}
+.gsearch input{flex:1;min-width:0;background:transparent!important;border:none!important;box-shadow:none!important;padding:0;height:100%;font-size:16px;color:var(--text);border-radius:0}
+.gsearch:focus-within{background:var(--surface);box-shadow:0 1px 3px var(--shadow),0 0 0 1px var(--border2)}
+/* AI status next to the aircraft model */
+.aib{font-family:var(--sans);font-size:10.5px;font-weight:500;letter-spacing:.4px;border-radius:8px;padding:3px 8px;margin-left:8px;vertical-align:4px;white-space:nowrap;cursor:default}
+.aib.ok{background:#c4eed0;color:#0d652d}
+.aib.off{background:#ffdfa0;color:#5c3c00;cursor:pointer}
+:root:not([data-theme="light"]) .aib.ok{background:#0f5223;color:#c4eed0}
+:root:not([data-theme="light"]) .aib.off{background:#5c3c00;color:#ffdfa0}
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]) .aib.ok{background:#c4eed0;color:#0d652d}:root:not([data-theme="dark"]) .aib.off{background:#ffdfa0;color:#5c3c00}}
+
+/* room for the AI status: compact header icons, data-status dot folded into the badges row */
+.hrow .iconbtn{width:36px;min-width:36px;height:36px}
+.hrow .iconbtn .ms{font-size:22px}
+.hrow>.dot{display:none}
+.brand{overflow:visible;min-width:0}
+.brand>span:last-child{display:flex;align-items:center;min-width:0}
+.brand small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+
+@media(max-width:520px){#caseTitle{display:none}}
+
 </style>
 </head>
 <body>
 <div id="app">
   <header>
     <div class="hrow">
-      <div class="brand"><span class="logo"><span class="ms">flight</span></span><span><span class="long">G600 Troubleshooter</span><span class="short">G600</span><small id="caseTitle"></small></span></div>
+      <div class="brand"><span class="logo"><span class="ms">flight</span></span><span><span class="long">G600 Troubleshooter</span><span class="short">G600</span><span class="aib" id="aiBadge" role="button" tabindex="0"></span><small id="caseTitle"></small></span></div>
       <div class="dot" id="dataDot" title="Manual data"></div>
       <button class="iconbtn" id="btnNew" title="New case"><span class="ms">add_circle</span></button>
       <button class="iconbtn" id="btnCases" title="Recent cases"><span class="ms">history</span></button>
@@ -449,7 +472,7 @@ html:has(body.inchat),body.inchat{background:linear-gradient(to bottom,var(--bg)
       <button class="iconbtn" id="btnTheme" title="Theme" aria-label="Theme"><span class="ms">brightness_auto</span></button>
       <button class="iconbtn" id="btnSettings" title="Settings"><span class="ms">settings</span></button>
     </div>
-    <div class="gsearch" id="gSearch" role="button" tabindex="0"><span class="ms">search</span><span>Search the G600 manuals</span></div>
+    <div class="gsearch" id="gSearch"><span class="ms">search</span></div>
     <div class="badges" id="badges"><span class="badge">LOADING MANUAL INDEX…</span></div>
   </header>
 
@@ -1592,11 +1615,12 @@ function openSettings(note){
   };
 }
 function setDot(s){$('#dataDot').className='dot '+s}
-function renderBadges(err){
+function renderAiBadge(){const a=$('#aiBadge');if(!a)return;const ok=!!cfg.anthropicKey;a.className='aib '+(ok?'ok':'off');a.textContent=ok?'AI READY':'NO API KEY';a.title=ok?'Claude API key set':'Add your Anthropic API key in Settings'}
+function renderBadges(err){renderAiBadge();
   const b=$('#badges');b.dataset.err=err||'';
   if(err){b.innerHTML=`<span class="badge" style="color:var(--red);border-color:var(--err-border)">DATA OFFLINE</span><span class="badge">${esc(err.slice(0,80))}</span>`;return}
   const amm=(DATA.manifest.revisions.AMM||'').match(/(\w+) \d+\/(\d\d)/);
-  b.innerHTML=`<span class="badge amber">${DATA.catalog.length.toLocaleString()} DOCS</span><span class="badge">AMM ${amm?esc(amm[1].slice(0,3).toUpperCase()+' '+amm[2]):''}</span><span class="badge">SDM R9</span><span class="badge">iWDM R4</span><span class="badge">${DATA.faults.length} CAS</span><span class="badge">IPC · SWPM · FSI</span><span class="badge" style="color:${cfg.anthropicKey?'var(--green)':'var(--amber)'}">${cfg.anthropicKey?'AI READY':'NO API KEY'}</span>`;
+  b.innerHTML=`<span class="badge amber">${DATA.catalog.length.toLocaleString()} DOCS</span><span class="badge">AMM ${amm?esc(amm[1].slice(0,3).toUpperCase()+' '+amm[2]):''}</span><span class="badge">SDM R9</span><span class="badge">iWDM R4</span><span class="badge">${DATA.faults.length} CAS</span><span class="badge">IPC · SWPM · FSI</span>`;renderAiBadge();
 }
 
 /* ═════════════════ INTAKE ═════════════════ */
@@ -1705,7 +1729,7 @@ function flash(btn,msg){const o=btn.textContent;btn.textContent=msg;btn.disabled
 function resetForm(){selFaults=[];renderFaultChips();selCmc=[];renderCmcChips();$('#cmcInput').value='';['#descText','#fAlt','#fSpd','#fOat','#fCabAlt','#fDp','#fRate','#fOther','#fSn','#fReg','#fApt','#fTT','#fCyc','#fEngHrs','#fEngCyc','#fApuHrs','#fRecent','#fDone','#faultInput'].forEach(i=>$(i).value='');prefillAircraft();$('#timesDetails').open=false;syncEngTimes();['#fPhase','#fBehavior','#fSide'].forEach(i=>$(i).value='');$('#readings').innerHTML='';$('#moreDetails').open=false}
 
 /* ═════════════════ CHAT ═════════════════ */
-function showChat(){$('#intakeView').classList.add('hidden');$('#chatView').classList.remove('hidden');document.body.classList.add('inchat');$$('.tab').forEach(x=>x.classList.toggle('on',x.dataset.tab==='describe'))}
+function showChat(){$('#intakeView').classList.add('hidden');$('#chatView').classList.remove('hidden');document.body.classList.add('inchat');$$('.tab').forEach(x=>x.classList.toggle('on',x.dataset.tab==='describe'));document.body.dataset.tab='describe'}
 function showIntake(){$('#chatView').classList.add('hidden');$('#intakeView').classList.remove('hidden');document.body.classList.remove('inchat');$('#caseTitle').textContent='';$('#main').scrollTop=0}
 const FOLLOW=['Next check?','Show the wiring','SSPC / CB?','Ops check'];
 const FOLLOW_FULL={'Next check?':'What should I check next?','Show the wiring':'Show me the wiring for this','Pins to meter':'Which connector pins / wires do I meter?','SSPC / CB?':'Which SSPC / CB powers this?','Part numbers':'Part numbers for the likely LRU','Ops check':'Ops check after the repair','System logic':'Explain the system logic','Logbook entry':'Summarize for the logbook'};
@@ -1938,6 +1962,8 @@ function fitAppHeight(){
 
   // tabs work from the case conversation too: Describe returns to the open case, the others leave it in the background
   $$('.tab').forEach(t=>t.addEventListener('click',()=>{
+    document.body.dataset.tab=t.dataset.tab;
+    if(t.dataset.tab==='search')setTimeout(()=>{const q=$('#sQuery');if(q&&$('#chatView').classList.contains('hidden'))q.focus()},0);
     const inChat=!$('#chatView').classList.contains('hidden');
     if(t.dataset.tab==='describe'){if(CASE&&CASE.msgs&&CASE.msgs.length&&!inChat){showChat();$('#caseTitle').textContent=CASE.title?' · '+CASE.title:''}}
     else if(inChat)showIntake();
@@ -1950,8 +1976,10 @@ document.addEventListener('scroll',()=>{if(window.scrollY||window.scrollX)window
   if(window.visualViewport)visualViewport.addEventListener('resize',fitAppHeight);
   window.addEventListener('resize',fitAppHeight);window.addEventListener('orientationchange',()=>setTimeout(fitAppHeight,300));
   window.addEventListener('pageshow',fitAppHeight);document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(fitAppHeight,50)});
-  const go=()=>{const t=document.querySelector('.tab[data-tab=search]');if(t)t.click();setTimeout(()=>{const q=$('#sQuery');if(q)q.focus()},50)};
-  const g=$('#gSearch');if(g){g.onclick=go;g.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go()}}}
+  // the Search tab's query box lives in the top bar's search pill (shown on the Search tab only)
+  const g=$('#gSearch'),q=$('#sQuery');if(g&&q){const fld=q.closest('.field');q.placeholder='Search the G600 manuals';g.appendChild(q);if(fld&&!fld.children.length)fld.remove();g.onclick=e=>{if(e.target!==q)q.focus()}}
+  document.body.dataset.tab='describe';
+  const ab=$('#aiBadge');if(ab){ab.onclick=()=>{if(!cfg.anthropicKey)openSettings()};renderAiBadge()}
   // hide the bottom navigation while the keyboard is up (typing in a field on the intake screens)
   document.addEventListener('focusin',e=>{if(e.target.matches('#intakeView input:not([type=checkbox]):not([type=date]),#intakeView textarea,#intakeView select'))document.body.classList.add('kb')});
   document.addEventListener('focusout',()=>setTimeout(()=>{const a=document.activeElement;if(!a||!a.matches('#intakeView input,#intakeView textarea,#intakeView select'))document.body.classList.remove('kb')},120));
