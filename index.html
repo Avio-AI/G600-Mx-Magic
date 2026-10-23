@@ -458,6 +458,11 @@ body[data-tab="search"]:not(.inchat) .gsearch{display:flex}
 
 @media(max-width:520px){#caseTitle{display:none}}
 
+/* manual/revision chips: Search tab only (a data error still shows everywhere) */
+.badges{display:none}
+body[data-tab="search"]:not(.inchat) .badges{display:flex}
+#badges:not([data-err=""]){display:flex}
+
 </style>
 </head>
 <body>
