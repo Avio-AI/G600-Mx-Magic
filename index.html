@@ -969,7 +969,7 @@ const TOOLS=[
   input_schema:{type:'object',properties:{query:{type:'string',description:'e.g. "006A5", "CPCU", "MS3456", "TEMPERATURE SENSOR"'},ata_prefix:{type:'string',description:'Optional ATA filter, e.g. "21-20"'}},required:['query']}},
  {name:'get_connector_pins',description:'Get the iWDM pin-out of a connector or inline: for each cavity the signal, wire number (gauge is in the wire number, e.g. 1H321A20 = 20 AWG), wire P/N, color, and the mating far-end connector and pin. Use to say exactly which pins/wires to meter and where the other end goes.',
   input_schema:{type:'object',properties:{connector:{type:'string',description:'Exact designator, e.g. "006A5P1"'},filter:{type:'string',description:'Optional text filter on rows (pin, wire, signal, far-end)'}},required:['connector']}},
- {name:'lookup_mel',description:'Look up MEL dispatch relief for an inoperative item or a CAS message in the Gulfstream GVII-G500/G600 MMEL (Rev 4) with the Gulfstream MOPP. Returns for each relief option: repair category, number installed / required for dispatch, the MMEL remarks or exceptions (conditions), the (M) maintenance procedure, (O) operational procedure and placard, the repair interval and the dispatch authority under the operating rule set in the app, with MMEL / MOPP citations. Use it when the technician asks whether the aircraft can be dispatched, or when your conclusion leaves an item inoperative.',
+ {name:'lookup_mel',description:'Look up MEL dispatch relief for an inoperative item or a CAS message in the Gulfstream GVII-G500/G600 MMEL (Rev 4) with the Gulfstream MOPP. Returns for each relief option: repair category, number installed / required for dispatch, the MMEL remarks or exceptions (conditions), the (M) maintenance procedure, (O) operational procedure and placard, the repair interval and the dispatch authority under the operating rule set in the app, with MMEL / MOPP citations. Use it when the technician asks whether the aircraft can be dispatched, or when your conclusion leaves an item inoperative. Search with the system / item words as the MMEL names them (e.g. "water line heater", not a part number or reference designator). If the failed part is not named in the results, also search the two-digit ATA chapter alone (e.g. "38") to list every item in that chapter, and choose the most specific item that covers the failed part (a heater item over the whole water system).',
   input_schema:{type:'object',properties:{query:{type:'string',description:'Item or CAS message words, or MMEL item number, e.g. "ECS pack", "TSC", "ADS 1-2-3-4 Dgrd", "21-4"'}},required:['query']}},
  {name:'record_mel_deferral',description:'Record that an MEL deferral is verified as necessary for this case, so the app fills the MEL deferral section of the operator paperwork (the Solairus AMDL when that operating rule is set) and offers it to the technician. Call it only when (1) the fault will not be corrected before the next flight (the technician said so, or asked to defer), (2) lookup_mel found relief for the actual failed item under the operating rule, and (3) you have picked the relief option whose conditions match this aircraft. Never call it as a suggestion or for an item without relief.',
   input_schema:{type:'object',properties:{mel_id:{type:'string',description:'mel_id from lookup_mel'},option:{type:'integer',description:'option number of the chosen relief row from lookup_mel'},discrepancy:{type:'string',description:'Discrepancy entry for the log: what failed and how it showed (CAS message, symptom), one or two sentences, technician wording style'},verification:{type:'string',description:'Why deferral is necessary and which relief conditions were confirmed or still must be completed before dispatch'}},required:['mel_id','option','discrepancy','verification']}},
@@ -2095,21 +2095,33 @@ async function loadMel(){
 }
 function melOps(){return MEL_OPS[cfg.melOps]||MEL_OPS['91-d195']}
 function melAuthOk(r,ops){ops=ops||melOps();if(!r.auth)return true;return ops.fam==='easa'?/EASA/.test(r.auth):/FAA/.test(r.auth)}
+// MEL search: every meaningful word must match (stems + a few synonyms: heated~heater~heat, hose~line~tube);
+// if nothing matches every word, items matching at least half the words are returned, best first.
+const MEL_STOP=new Set(['THE','A','AN','OF','AND','OR','FOR','TO','IN','ON','IS','AT','WITH','INOP','INOPERATIVE','FAILED','FAILURE','FAILS','BROKEN','BAD','ASSEMBLY','ASSY','UNIT','DEFER','DEFERRAL','DEFERRED','MEL','MMEL','ITEM','RELIEF']);
+const MEL_SYN={HOSE:['LINE','TUBE','PIPE','PLUMBING'],LINE:['HOSE','TUBE','PIPE'],PIPE:['LINE','HOSE','TUBE'],TUBE:['LINE','HOSE','PIPE'],HTR:['HEAT'],PWS:['POTABLE'],LAV:['LAVATORY'],TOILET:['LAVATORY','WASTE'],XPDR:['TRANSPONDER'],WX:['WEATHER'],RADAR:['WEATHER'],APU:['AUXILIARY'],GEN:['GENERATOR'],BATT:['BATTERY'],ECS:['AIR','CONDITIONING','PACK'],LT:['LIGHT'],LIGHTS:['LIGHT'],LAMP:['LIGHT'],WSHLD:['WINDSHIELD'],WINDOW:['WINDOW','WINDSHIELD']};
+function melStem(w){w=String(w).toUpperCase();for(const s of ['INGS','ING','ERS','ER','ED','S']){if(w.length>s.length+2&&w.endsWith(s))return w.slice(0,-s.length)}return w}
+function melTermIn(t,st){const alts=[t,...(MEL_SYN[t]||[])].map(melStem);
+  return alts.some(a=>st.some(h=>h===a||(a.length>=4&&h.length>=4&&(h.startsWith(a)||a.startsWith(h)))))}
 function searchMel(q,max=14){
   if(!MEL)return [];
-  const Q=normMsg(q);const terms=Q.split(' ').filter(Boolean);if(!terms.length)return [];
-  const ata=String(q).trim().match(/^(\d{2})(?:[-\s.]?(\d{1,2}))?/);
-  const sc=[];
+  const Q=normMsg(q);let terms=Q.split(' ').filter(Boolean);if(!terms.length)return [];
+  const req=terms.filter(t=>!MEL_STOP.has(t));if(req.length)terms=req;
+  const ata=String(q).trim().match(/^(\d{2})(?:[-\s.]?(\d{1,2}))?$/)||String(q).trim().match(/^(\d{2})[-\s.](\d{1,2})\b/);
+  const pure=/^\d{2}([-\s.]\d{1,2})?$/.test(String(q).trim());
+  const full=[],part=[];const need=Math.max(1,Math.ceil(terms.length/2));
   for(const g of [...MEL.items,...MEL.cas]){
     const key=g.kind==='item'?g.k.split('-').slice(0,2).join('-'):'';
     const ataHit=ata&&g.kind==='item'&&(ata[2]?key===`${ata[1]}-${+ata[2]}`:g.ata===ata[1]);
-    if(!ataHit&&!terms.every(t=>g.hay.includes(t)))continue;
-    const name=normMsg(g.kind==='item'?`${g.item} ${g.sub}`:g.name);
-    let s=0;if(name===Q)s+=100;if(name.startsWith(Q))s+=30;if(ataHit)s+=40;
-    s+=terms.filter(t=>(' '+name+' ').includes(' '+t+' ')).length*6;if(g.kind==='cas'&&/CAS|FAIL|FAULT|DGRD|MAINT/.test(Q))s+=4;
-    s-=name.length/60;sc.push([s,g]);
+    if(!g._st)g._st=[...new Set(g.hay.split(' ').filter(Boolean).map(melStem))];
+    const name=normMsg(g.kind==='item'?`${g.item} ${g.sub}`:g.name);const nst=name.split(' ').map(melStem);
+    const m=terms.filter(t=>melTermIn(t,g._st)).length,mn=terms.filter(t=>melTermIn(t,nst)).length;
+    if(!ataHit&&(pure||m<need||(m<terms.length&&terms.length<3)))continue;
+    let s=mn*8+m*3;if(name===Q)s+=100;if(name.startsWith(Q))s+=30;if(ataHit)s+=40;if(g.kind==='cas'&&/CAS|FAIL|FAULT|DGRD|MAINT/.test(Q))s+=4;
+    s-=name.length/60;(ataHit||m===terms.length?full:part).push([s,g]);
   }
-  return sc.sort((a,b)=>b[0]-a[0]).slice(0,max).map(x=>x[1]);
+  const ord=g=>MEL.items.indexOf(g);
+  const by=pure?(a,b)=>ord(a[1])-ord(b[1]):(a,b)=>b[0]-a[0];full.sort(by);part.sort(by);
+  return [...full,...(full.length<3?part:[])].slice(0,max).map(x=>x[1]);
 }
 function melId(g){return (g.kind==='cas'?'C':'I')+(g.kind==='cas'?MEL.cas:MEL.items).indexOf(g)}
 function melById(id){const m=String(id||'').match(/^([CI])(\d+)$/);if(!m||!MEL)return null;return (m[1]==='C'?MEL.cas:MEL.items)[+m[2]]||null}
