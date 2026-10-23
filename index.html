@@ -474,6 +474,9 @@ body[data-tab="search"]:not(.inchat) .badges{display:none}
 .sessrow:focus-within{background:var(--surface);box-shadow:0 0 0 1px var(--cyan)}
 header .gsearch{margin-top:8px}
 
+/* desktop wiring viewer: grab to pan */
+@media (pointer:fine){.svgbox{cursor:grab;user-select:none;-webkit-user-select:none}.svgbox.grabbing{cursor:grabbing}.svgbox.grabbing *{cursor:grabbing!important}.svgbox text.xref{cursor:pointer}}
+
 </style>
 </head>
 <body>
@@ -1495,7 +1498,7 @@ async function openPage(docId,page,opt={}){
     recordDrawing(d,page,opt.hl);
     const svg=(d.svgs||[])[page-1];
     showModal(pg.cite,`<div class="kv"><b>iWDM — ${esc(d.title)}</b><br>System ${esc(d.c.slice(5))} · ATA ${esc(d.ata||'—')} · sheet ${esc((d.dia||[])[page-1]||page)} (${page} of ${d.pages})<br><span style="font-family:var(--mono);font-size:12px">${esc(d.path)}</span></div>
-     ${nav}<button class="btn2 small" id="zOut">−</button><button class="btn2 small" id="zIn">＋</button><button class="btn2 small" id="zFit">Fit</button><span class="zhint">Pinch or double-tap to zoom</span></div>
+     ${nav}<button class="btn2 small" id="zOut">−</button><button class="btn2 small" id="zIn">＋</button><button class="btn2 small" id="zFit">Fit</button><span class="zhint">Pinch or double-tap to zoom · drag to move</span></div>
      ${DHIST.length?`<select class="recent" id="pgRecent">${recentOptions({docId,page})}</select>`:''}
      <div class="hlnote hidden" id="hlNote"></div>
      <div class="svgbox" id="svgBox"><div class="hint" style="padding:12px;color:#333">Loading schematic…</div></div>
@@ -1510,7 +1513,7 @@ async function openPage(docId,page,opt={}){
     $('#zIn').onclick=()=>setZ(z*1.6);$('#zOut').onclick=()=>setZ(z/1.6);$('#zFit').onclick=()=>setZ(1);
     if(svg)svgText(svg).then(txt=>{if(!document.body.contains(box))return;
       const node=svgNode(txt);box.innerHTML='';box.appendChild(node);
-      const nx=linkXrefs(node,d);if(nx){const zh=document.querySelector('.zhint');if(zh)zh.textContent='Pinch or double-tap to zoom · blue = link'}
+      const nx=linkXrefs(node,d);if(nx){const zh=document.querySelector('.zhint');if(zh)zh.textContent='Pinch or double-tap to zoom · drag to move · blue = link'}
       // ── pinch-zoom (two fingers) around the pinch point; one finger scrolls natively
       let g=null,raf=0,last=null;
       const pts=e=>{const a=e.touches[0],b=e.touches[1];return {d:Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY),x:(a.clientX+b.clientX)/2,y:(a.clientY+b.clientY)/2}};
@@ -1550,6 +1553,20 @@ async function openPage(docId,page,opt={}){
         tap=null;
       },{passive:false});
       node.addEventListener('dblclick',e=>{e.preventDefault();zoomAt(e.clientX,e.clientY)});
+      // desktop: click-and-drag pans the drawing (a click without dragging still follows links); Ctrl/⌘ + wheel or trackpad pinch zooms at the cursor
+      {let drag=null;
+        box.addEventListener('pointerdown',e=>{if(e.pointerType!=='mouse'||e.button!==0)return;drag={id:e.pointerId,x:e.clientX,y:e.clientY,sl:box.scrollLeft,st:box.scrollTop,moved:false}});
+        box.addEventListener('pointermove',e=>{if(!drag||e.pointerId!==drag.id)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;
+          if(!drag.moved&&Math.hypot(dx,dy)>4){drag.moved=true;box.classList.add('grabbing');try{box.setPointerCapture(e.pointerId)}catch(_){}}
+          if(drag.moved){e.preventDefault();box.scrollLeft=drag.sl-dx;box.scrollTop=drag.st-dy}});
+        const end=e=>{if(!drag)return;const moved=drag.moved;drag=null;box.classList.remove('grabbing');
+          if(moved){const stop=ev=>{ev.stopPropagation();ev.preventDefault()};box.addEventListener('click',stop,{capture:true,once:true});setTimeout(()=>box.removeEventListener('click',stop,{capture:true}),50)}};
+        box.addEventListener('pointerup',end);box.addEventListener('pointercancel',end);
+        box.addEventListener('dragstart',e=>e.preventDefault());
+        box.addEventListener('wheel',e=>{if(!e.ctrlKey&&!e.metaKey)return;e.preventDefault();const br=box.getBoundingClientRect(),cx=e.clientX-br.left,cy=e.clientY-br.top;
+          const ox=box.scrollLeft+cx,oy=box.scrollTop+cy;const nz=Math.min(ZMAX,Math.max(1,z*Math.exp(-e.deltaY*(e.deltaMode?0.05:0.0025)))),f=nz/z;if(f===1)return;z=nz;node.style.width=(z*100)+'%';
+          box.scrollLeft=ox*f-cx;box.scrollTop=oy*f-cy},{passive:false});
+      }
       const terms=opt.hl||[];
       if(terms.length){
         hits=svgHighlight(node,terms);const note=$('#hlNote');note.classList.remove('hidden');
