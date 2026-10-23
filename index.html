@@ -488,7 +488,7 @@ header .gsearch{margin-top:8px}
       <button class="iconbtn" id="btnTheme" title="Theme" aria-label="Theme"><span class="ms">brightness_auto</span></button>
       <button class="iconbtn" id="btnSettings" title="Settings"><span class="ms">settings</span></button>
     </div>
-    <div class="sessrow"><span class="ms">edit_note</span><input id="sessName" placeholder="Name this session" maxlength="80" autocomplete="off" spellcheck="false" enterkeyhint="done" aria-label="Session name"></div>
+    <div class="sessrow"><span class="ms">edit_note</span><input id="sessName" placeholder="Name This Session" maxlength="80" autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="done" aria-label="Session name"></div>
     <div class="gsearch" id="gSearch"><span class="ms">search</span></div>
     <div class="badges" id="badges"><span class="badge">LOADING MANUAL INDEX…</span></div>
   </header>
@@ -1634,7 +1634,7 @@ function openSettings(note){
   };
 }
 function setDot(s){$('#dataDot').className='dot '+s}
-function syncSessName(){const sn=$('#sessName');if(!sn)return;if(!CASE){sn.placeholder='Name this session';return}if(!CASE.autoTitle&&!CASE.named)CASE.autoTitle=CASE.title;sn.value=CASE.named?CASE.title:'';sn.placeholder=CASE.named?'Name this session':(CASE.autoTitle||CASE.title||'Name this session')}
+function syncSessName(){const sn=$('#sessName');if(!sn)return;if(!CASE){sn.placeholder='Name This Session';return}if(!CASE.autoTitle&&!CASE.named)CASE.autoTitle=CASE.title;sn.value=CASE.named?CASE.title:'';sn.placeholder=CASE.named?'Name This Session':(CASE.autoTitle||CASE.title||'Name This Session')}
 function renderAiBadge(){const a=$('#aiBadge');if(!a)return;const ok=!!cfg.anthropicKey;a.className='aib '+(ok?'ok':'off');a.textContent=ok?'AI READY':'NO API KEY';a.title=ok?'Claude API key set':'Add your Anthropic API key in Settings'}
 function renderBadges(err){renderAiBadge();
   const b=$('#badges');b.dataset.err=err||'';
@@ -1968,6 +1968,20 @@ $('#btnExport').onclick=()=>{
 };
 
 $('#btnSettings').onclick=()=>openSettings();
+/* ═════════ Title Case for every field name, heading, button and menu (data and typed text untouched) ═════════ */
+(function(){
+  const SEL='label,.card h3,h3.amh,details summary,.btn,.btn2,.tab,.sheethd .tt,.melsh>span,.melwho,.hint b';
+  const UNITS=/^(ft|psi|fpm|kias|hrs|kts|nm)$/;
+  const tcText=t=>t.replace(/(^|[\s(\/\-–—"“])([a-z][^\s\/()\-–—"”]*)/g,(m,p,w)=>/[A-Z0-9]/.test(w)?m:p+(UNITS.test(w)?w.toUpperCase():w.charAt(0).toUpperCase()+w.slice(1)));
+  const fix=el=>{const w=document.createTreeWalker(el,NodeFilter.SHOW_TEXT,{acceptNode:n=>n.parentElement&&n.parentElement.closest('input,select,textarea,.ms,.cite,code,.acmeta,.kv')?NodeFilter.FILTER_REJECT:NodeFilter.FILTER_ACCEPT});
+    for(let n=w.nextNode();n;n=w.nextNode()){const v=tcText(n.nodeValue);if(v!==n.nodeValue)n.nodeValue=v}};
+  const scan=root=>{if(!root||root.nodeType!==1)return;if(root.matches(SEL))fix(root);root.querySelectorAll(SEL).forEach(fix)};
+  scan(document.body);
+  let q=new Set(),raf=0;
+  new MutationObserver(ms=>{for(const m of ms){const t=m.target.nodeType===1?m.target:m.target.parentElement;if(!t)continue;const c=t.closest(SEL);q.add(c||t)}
+    if(!raf)raf=requestAnimationFrame(()=>{raf=0;const a=[...q];q.clear();a.forEach(scan)})}).observe(document.body,{childList:true,subtree:true});
+})();
+
 /* ═════════ Google-style UI behavior ═════════ */
 // App height = the visible screen. A home-screen app on iPhone can report a short height at launch,
 // which left a gap under the bottom bar; use the full screen height there unless the keyboard is up.
@@ -1983,9 +1997,10 @@ function fitAppHeight(){
 
   // session name: names the open case (or the next one you start); saved with the case
   const sn=$('#sessName');
-  if(sn){sn.addEventListener('input',()=>{if(!CASE)return;const v=sn.value.trim();CASE.title=v||CASE.autoTitle||CASE.title;CASE.named=!!v;saveCase()});
+  if(sn){sn.addEventListener('input',()=>{const st=sn.selectionStart,en=sn.selectionEnd,tc=sn.value.replace(/(^|[\s\-\/(])([a-z])/g,(m,a,b)=>a+b.toUpperCase());if(tc!==sn.value){sn.value=tc;try{sn.setSelectionRange(st,en)}catch(e){}}
+    if(!CASE)return;const v=sn.value.trim();CASE.title=v||CASE.autoTitle||CASE.title;CASE.named=!!v;saveCase()});
     sn.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();sn.blur()}});
-    $('#btnNew').addEventListener('click',()=>{sn.value='';sn.placeholder='Name this session'});syncSessName()}
+    $('#btnNew').addEventListener('click',()=>{sn.value='';sn.placeholder='Name This Session'});syncSessName()}
 
   // tabs work from the case conversation too: Describe returns to the open case, the others leave it in the background
   $$('.tab').forEach(t=>t.addEventListener('click',()=>{
