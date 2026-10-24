@@ -617,7 +617,7 @@ body.melonly .tab[data-tab=describe],body.melonly .tab[data-tab=search],body.mel
             <div class="field"><select id="wMode"><option value="comp">Find Component</option><option value="pins">Connector Pin-Out</option><option value="wire">Trace Wire Number</option></select></div>
             <div class="field"><button class="btn2" id="wGo" style="width:100%">Look up</button></div>
           </div>
-          <div class="hint">From the G600 iWDM. Tap a diagram to open the schematic. No AI or API key needed.</div>
+          <div class="hint" id="wHint">From the G600 iWDM. Tap a diagram to open the schematic. No AI or API key needed.</div>
         </div>
         <div id="wRecentWrap"></div>
         <div id="wResults"></div>
@@ -737,7 +737,9 @@ async function loadCore(){
     [DATA.catalog,DATA.faults,DATA.cmc]=await Promise.all([fetchData('catalog.json'),fetchData('faults.json'),fetchData('cmc.json').catch(()=>({messages:[],codes:[]}))]);
     DATA.byCite=new Map(DATA.catalog.map(d=>[normCite(d.c),d]));
     DATA.wsys=new Map(DATA.catalog.filter(d=>d.m==='iWDM').map(d=>[d.c.slice(5),d]));
+    DATA.baseLen=DATA.catalog.length;WSET=null;WSET_P=null;
     DATA.ready=true; setDot('ok'); renderBadges(); fillChapterSelect();
+    applyWiringSet(curSn());
   }catch(e){
     setDot('err'); renderBadges(e.message); console.error(e);
   }
@@ -745,14 +747,54 @@ async function loadCore(){
 function shardKeyFor(doc){return doc.s||(doc.ata?doc.ata.slice(0,2):'gen')}
 /* ── wiring data (iWDM) ── */
 const CTYPE={C:'Connector',I:'Inline connector',D:'Device / LRU',S:'Splice',G:'Ground'};
-async function loadComps(){if(!DATA.comps)DATA.comps=fetchData('wiring/components.json.gz');try{return await DATA.comps}catch(e){DATA.comps=null;throw e}}
+async function loadComps(){if(WSET_P)await WSET_P;if(!DATA.comps)DATA.comps=fetchData(WB()+'components.json.gz');try{return await DATA.comps}catch(e){DATA.comps=null;throw e}}
 async function loadPins(ch){
   if(DATA.pins.has(ch))return DATA.pins.get(ch);
-  if(!(DATA.manifest.wiring?.pinChapters||[]).includes(ch))return null;
-  const p=fetchData(`wiring/pins/${ch}.json.gz`);DATA.pins.set(ch,p);
+  if(!pinChs().includes(ch))return null;
+  const p=fetchData(`${WB()}pins/${ch}.json.gz`);DATA.pins.set(ch,p);
   try{return await p}catch(e){DATA.pins.delete(ch);throw e}
 }
-async function allPins(){const out=[];for(const ch of DATA.manifest.wiring?.pinChapters||[]){const p=await loadPins(ch);if(p)out.push(p)}return out}
+async function allPins(){if(WSET_P)await WSET_P;const out=[];for(const ch of pinChs()){const p=await loadPins(ch);if(p)out.push(p)}return out}
+
+/* ── iWDM serial sets: the aircraft's S/N picks its own wiring package (manifest.wiring.sets) ── */
+let WSET=null,WSET_P=null,WSET_SN='';
+function WB(){return WSET?WSET.path:'wiring/'}
+function pinChs(){return (WSET?WSET.meta.pinChapters:DATA.manifest.wiring?.pinChapters)||[]}
+function wsetFor(sn){const n=parseInt(String(sn||'').replace(/\D/g,''),10);if(!n)return null;return (DATA.manifest?.wiring?.sets||[]).find(s=>n>=s.from&&n<=s.to)||null}
+function curSn(){return (typeof CASE!=='undefined'&&CASE&&CASE.form&&CASE.form.sn)||($('#fSn')&&$('#fSn').value.trim())||((store.get(LAST_AC_KEY,null)||{}).sn)||''}
+function applyWiringSet(sn){
+  if(!DATA.ready||!(DATA.manifest.wiring?.sets||[]).length){wsetHint();return Promise.resolve()}
+  const s=wsetFor(sn);WSET_SN=String(sn||'').trim();
+  if((s&&WSET&&s.path===WSET.path)||(!s&&!WSET)){wsetHint();return WSET_P||Promise.resolve()}
+  const run=async()=>{
+    DATA.comps=null;DATA.pins.clear();svgTexts.clear();DATA.shards.delete('wset');delete DATA.manifest.shards.wset;
+    for(const d of DATA.catalog.slice(DATA.baseLen))DATA.byCite.delete(normCite(d.c));DATA.catalog.length=DATA.baseLen;
+    const base=DATA.catalog.filter(d=>d.m==='iWDM');WSET=null;
+    if(!s){for(const d of base)DATA.byCite.set(normCite(d.c),d);DATA.wsys=new Map(base.map(d=>[d.c.slice(5),d]));return}
+    const [meta,sys,sheets]=await Promise.all([fetchData(s.path+'set.json'),fetchData(s.path+'systems.json'),fetchData(s.path+'sheets.json.gz')]);
+    const off=DATA.catalog.length;const docs=sys.map(d=>({...d,id:off+d.id,s:'wset',wset:true,rev:`${d.rev} · iWDM R4 s/n ${rng(s)}`}));
+    DATA.catalog.push(...docs);for(const d of docs)DATA.byCite.set(normCite(d.c),d);
+    DATA.wsys=new Map(docs.map(d=>[d.c.slice(5),d]));
+    DATA.shards.set('wset',Promise.resolve({key:'wset',pages:sheets.map(r=>[off+r[0],r[1],r[2],r[3]]),idx:null}));
+    DATA.manifest.shards.wset={pages:sheets.length};
+    WSET={...s,meta};
+  };
+  const p=run().catch(e=>{console.error(e);WSET=null;wsetHint('Could not load the wiring set for this S/N: '+e.message)}).finally(()=>{if(WSET_P===p)WSET_P=null;wsetHint()});
+  WSET_P=p;wsetHint();return p;
+}
+const rng=s=>s.from===s.to?`${s.from}`:`${s.from}–${s.to}`;
+function wsetHint(err){const h=$('#wHint');if(!h)return;
+  const has=(DATA.manifest?.wiring?.sets||[]).length;
+  h.innerHTML=err?`<span style="color:var(--red)">${esc(err)}</span>`:WSET_P&&!WSET?'Loading the wiring set for this S/N…':
+    WSET?`G600 iWDM R4 for <b>s/n ${rng(WSET)}</b>${WSET_SN?` (aircraft S/N ${esc(WSET_SN)})`:''}. Tap a diagram to open the schematic. No AI or API key needed.`:
+    has&&WSET_SN?`<b>S/N ${esc(WSET_SN)}</b> is not in any iWDM package in your library, so the s/n 73100–73114 package is shown. Verify against the iWDM for this serial.`:
+    has?'Enter the aircraft serial number on the Describe tab to use its own iWDM package (showing s/n 73100–73114). Tap a diagram to open the schematic.':
+    'From the G600 iWDM. Tap a diagram to open the schematic. No AI or API key needed.'}
+function wsetPromptLine(){
+  if(WSET)return `The wiring data loaded (iWDM tools and wiring sheets) is the iWDM R4 package for s/n ${rng(WSET)}, which covers this aircraft (S/N ${WSET_SN}). Cite wiring as usual; it is effective for this serial.`;
+  if((DATA.manifest?.wiring?.sets||[]).length)return `No aircraft serial number in the iWDM library's range is set${WSET_SN?` (S/N ${WSET_SN})`:''}, so the wiring data is the iWDM package for s/n 73100–73114: say the wiring must be verified against the iWDM for the aircraft's serial, and ask for the S/N if it is missing.`;
+  return 'The iWDM package is effective for s/n 73100–73114: if the aircraft serial is outside that range, say the wiring must be verified against the iWDM for that serial.';
+}
 function diagRef(sys,dia){
   const d=DATA.wsys.get(sys);if(!d)return {system:sys,sheet:dia};
   const i=(d.dia||[]).indexOf(dia);const page=i>=0?i+1:1;
@@ -796,6 +838,7 @@ async function traceWire(w){
 }
 async function loadShard(k){
   if(DATA.shards.has(k))return DATA.shards.get(k);
+  if(k==='wset')return null;
   if(!DATA.manifest.shards[k])return null;
   const p=(async()=>{const pages=await fetchData(`shards/${k}.json.gz`);return {key:k,pages,idx:null}})();
   DATA.shards.set(k,p);
@@ -837,7 +880,7 @@ function searchShard(sh,q,manuals){
       const w=et===t?1:.6;
       for(let j=0;j<post.length;j+=2){
         const i=post[j],tf=post[j+1];
-        const dd=DATA.catalog[sh.pages[i][0]];if(manuals&&!manuals.has(dd.m))continue;if(dd.type&&dd.type.endsWith('(xref)'))continue;
+        const dd=DATA.catalog[sh.pages[i][0]];if(manuals&&!manuals.has(dd.m))continue;if(WSET&&dd.m==='iWDM'&&!dd.wset)continue;if(dd.type&&dd.type.endsWith('(xref)'))continue;
         const s=w*idf*(tf*(k1+1))/(tf+k1*(1-b+b*idx.lens[i]/idx.avg));
         scores.set(i,(scores.get(i)||0)+s);
         let h=hits.get(i);if(!h){h=new Set();hits.set(i,h)}h.add(t);
@@ -887,8 +930,11 @@ async function searchManuals(query,{chapters,manuals,max=8}={}){
   if(!ch.length)ch=Object.keys(DATA.manifest.shards);
   const ms=manuals&&manuals.length?new Set(manuals.map(m=>m.toUpperCase()==='IWDM'?'iWDM':m.toUpperCase())):null;
   if(ms&&(ms.has('MMEL')||ms.has('MOPP'))&&DATA.manifest.shards.mel&&!ch.includes('mel'))ch.push('mel');
+  if(WSET_P)await WSET_P;const nums=ch.filter(k=>/^\d\d$/.test(k));
+  if(WSET&&DATA.manifest.shards.wset&&(!ms||ms.has('iWDM'))&&!ch.includes('wset'))ch.push('wset');
   const shards=(await Promise.all(ch.map(loadShard))).filter(Boolean);
   let res=[];for(const sh of shards)res.push(...searchShard(sh,query,ms));
+  if(nums.length&&chapters&&chapters.length)res=res.filter(r=>r.sh.key!=='wset'||nums.includes((DATA.catalog[r.sh.pages[r.i][0]].ata||'').slice(0,2)));
   res.sort((a,b)=>b.score-a.score);
   // diversify: max 2 pages per document
   const per=new Map(),out=[];
@@ -980,6 +1026,7 @@ const TOOLS=[
 ];
 async function runTool(name,input){
   try{
+    if(WSET_P)await WSET_P;
     if(!DATA.ready)throw new Error('Manual data is not loaded. Check Settings.');
     if(name==='lookup_cas'||name==='lookup_fault'){
       const r=searchFaults(input.query||'',15);r.forEach(f=>registerSource({cite:f.cite,doc_id:f.doc,pdf_page:f.page}));
@@ -1094,7 +1141,7 @@ Do not stop at one search: search, read the relevant pages, cross-check between 
 - Cite every manual-derived fact inline using the citation strings returned by tools, in square brackets, e.g. [AMM 21-61-03-280B p2], [SDM 21-00-00 p3], [FSI 21 p129], [iWDM 73P2120006J_TP sh 3.000], [iWDM 006A5P1 pin-out]. Never invent citations.
 - Never invent part numbers, limits, tolerances, torque values, pin numbers, wire numbers or task numbers. If you cannot find it, say so and point to where it should be.
 - Clearly label anything from general experience rather than these manuals as "General knowledge (not from the manuals)".
-- FSI is training material (chapter revisions 0.1–0.9): confirm FSI logic against the SDM/AMM when it matters, and flag differences. The iWDM package is effective for s/n 73100–73114: if the aircraft serial is outside that range, say the wiring must be verified against the iWDM for that serial.
+- FSI is training material (chapter revisions 0.1–0.9): confirm FSI logic against the SDM/AMM when it matters, and flag differences. ${wsetPromptLine()}
 - Relay WARNINGs and CAUTIONs from procedures that apply to the step you recommend (electrical power, hot parts, pressurized systems, flight controls, fuel tank CDCCL).
 - State your confidence (High / Medium / Low) in the leading hypothesis and what would raise it.
 - You are a decision aid. Return to service requires the current approved data, the required operational/functional check, and sign-off by an appropriately certificated person — say this once at conclusion, not in every reply.
@@ -1325,8 +1372,9 @@ async function resolveCite(c){
 }
 const svgTexts=new Map();
 async function svgText(path){
-  if(!svgTexts.has(path))svgTexts.set(path,fetchText(`wiring/svg/${path.replace(/\//g,'_')}.gz`).catch(e=>{svgTexts.delete(path);throw e}));
-  return svgTexts.get(path);
+  if(WSET_P)await WSET_P;const k=WB()+path;
+  if(!svgTexts.has(k))svgTexts.set(k,fetchText(`${WB()}svg/${path.replace(/\//g,'_')}.gz`).catch(e=>{svgTexts.delete(k);throw e}));
+  return svgTexts.get(k);
 }
 function svgNode(txt){
   const doc=new DOMParser().parseFromString(txt,'image/svg+xml');const svg=doc.documentElement;
@@ -1460,7 +1508,7 @@ async function gotoDrawing(doc,terms,sheet){
 }
 function showAtaDrawings(ata,terms){
   const pre=/-00-00$/.test(ata)?ata.slice(0,2):/-00$/.test(ata)?ata.slice(0,5):ata;
-  const docs=DATA.catalog.filter(d=>d.m==='iWDM'&&(d.ata||'').startsWith(pre));
+  const docs=DATA.catalog.filter(d=>d.m==='iWDM'&&(!WSET||d.wset)&&(d.ata||'').startsWith(pre));
   showModal(`Wiring — ATA ${ata}`,`${NAV.length?'<button class="btn2 small" id="xBack" style="margin-bottom:10px">◂ Back</button>':''}<div class="kv">${docs.length} wiring drawing${docs.length===1?'':'s'} in ATA ${esc(pre)}${terms.length?` · looking for <b>${esc(terms.join(', '))}</b>`:''}</div><div class="xlist">${docs.map(d=>`<div class="res" data-x="${d.id}"><div class="h"><span class="mt">iWDM</span><span class="ttl">${esc(d.c.slice(5))}</span></div><div class="lb">${esc(d.title)} · ATA ${esc(d.ata)} · ${d.pages} sheet${d.pages>1?'s':''}</div></div>`).join('')||'<div class="hint">No wiring drawings indexed for this ATA.</div>'}</div>`);
   $$('.xlist .res').forEach(el=>el.onclick=()=>gotoDrawing(DATA.catalog[+el.dataset.x],terms));
   const b=$('#xBack');if(b)b.onclick=()=>{const p=NAV.pop();if(p)openPage(p.docId,p.page,{...p.opt,noPush:true})};
@@ -1654,7 +1702,8 @@ function openSettings(note){
   };
   $('#stOffline').onclick=async()=>{
     if(!DATA.ready){$('#stStatus').textContent='Connect the data source first.';return}
-    const files=[...Object.keys(DATA.manifest.shards).map(k=>`shards/${k}.json.gz`),'wiring/components.json.gz',...(DATA.manifest.wiring?.pinChapters||[]).map(c=>`wiring/pins/${c}.json.gz`)];
+    const files=[...Object.keys(DATA.manifest.shards).filter(k=>k!=='wset').map(k=>`shards/${k}.json.gz`),'wiring/components.json.gz',...(DATA.manifest.wiring?.pinChapters||[]).map(c=>`wiring/pins/${c}.json.gz`),
+      ...(WSET?[WSET.path+'set.json',WSET.path+'systems.json',WSET.path+'sheets.json.gz',WSET.path+'components.json.gz',...WSET.meta.pinChapters.map(c=>`${WSET.path}pins/${c}.json.gz`)]:[])];
     const bar=$('#stProg');bar.classList.remove('hidden');let n=0;$('#stOffline').disabled=true;
     for(const f of files){try{await fetchData(f)}catch(e){$('#stStatus').textContent='Failed: '+e.message;break}bar.firstChild.style.width=(++n/files.length*100)+'%'}
     $('#stOffline').textContent=n===files.length?'✔ All manuals stored on this device':'Retry download';$('#stOffline').disabled=false;
@@ -2704,6 +2753,9 @@ async function doWiring(){
 renderRecentTab();
 $('#wGo').onclick=doWiring;$('#wQuery').addEventListener('keydown',e=>{if(e.key==='Enter')doWiring()});
 
+/* iWDM serial set follows the S/N on the form, or the open case's S/N */
+{const sn=$('#fSn');if(sn){let t;sn.addEventListener('input',()=>{clearTimeout(t);t=setTimeout(()=>{if(!CASE)applyWiringSet(sn.value.trim())},500)})}}
+{const _wsRender=renderCase;renderCase=function(){_wsRender.apply(this,arguments);if(CASE&&CASE.form)applyWiringSet(CASE.form.sn||'')}}
 /* ═════════════════ BOOT ═════════════════ */
 (async function boot(){
   renderFaultChips();renderFollowChips();
