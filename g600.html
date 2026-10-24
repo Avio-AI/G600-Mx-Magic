@@ -496,6 +496,17 @@ body.melonly .tab[data-tab=describe],body.melonly .tab[data-tab=search],body.mel
 .msg .phs img{width:96px;height:96px;object-fit:cover;border-radius:10px;cursor:zoom-in;background:var(--panel)}
 .msg .phs img.missing{opacity:.35}
 .crow .phattach{flex-shrink:0;align-self:flex-end}
+
+/* case summary */
+.casestat{display:flex;align-items:center;gap:10px;width:100%;border:none;background:var(--panel);color:var(--text);border-radius:14px;padding:10px 12px;margin:0 0 12px;font:inherit;font-size:14px;text-align:left;cursor:pointer}
+.casestat .dot{width:10px;height:10px;border-radius:50%;background:#1a73e8;flex-shrink:0}
+.casestat[data-k=deferred] .dot{background:#e37400}.casestat[data-k=cleared] .dot{background:#188038}.casestat[data-k=closed] .dot{background:var(--text-dim)}
+.casestat .st{flex:1;min-width:0}
+.casestat .go{display:flex;align-items:center;color:var(--cyan);font-weight:500;flex-shrink:0}
+.casestat .go .ms{font-size:20px}
+.sumstat{display:inline-block;border-radius:8px;padding:4px 10px;font-size:13px;font-weight:500;background:var(--tonal);color:var(--on-tonal)}
+.sumstat.deferred{background:#fde7c8;color:#7a3e00}.sumstat.cleared{background:#d6f0dc;color:#0d5323}.sumstat.closed{background:var(--panel);color:var(--text-dim)}
+.sumbody h4{margin:14px 0 6px}
 </style>
 </head>
 <body>
@@ -1920,7 +1931,7 @@ async function syApi(path,{method='GET',body=null,raw=false}={}){
 function syErr(r){return r.status===401?'Case sync: token invalid or expired':r.status===403?'Case sync: the token cannot write to the cases repo (needs Contents: Read and write)':r.status===404?'Case sync: cases repo not found, or the token has no access to it':`Case sync: GitHub ${r.status}`}
 function syMeta(c,sha){const f=c.form||{};let ata='';try{ata=caseAta(f)}catch(e){}
   return {sha,created:c.created,updated:c.updated,reg:String(f.reg||'').toUpperCase(),ata:ata||(c.deferral&&c.deferral.ata)||'',title:c.title||'',named:!!c.named,
-    replies:(c.msgs||[]).filter(m=>m.role==='assistant').length,by:c.by||'',editedBy:c.editedBy||'',def:!!c.deferral,clr:!!c.clearing}}
+    replies:(c.msgs||[]).filter(m=>m.role==='assistant').length,closed:!!c.closedAt,by:c.by||'',editedBy:c.editedBy||'',def:!!c.deferral,clr:!!c.clearing}}
 function syStoreLocal(c){let cs=loadCases().filter(x=>x.id!==c.id);cs.push(c);cs.sort((a,b)=>(b.updated||0)-(a.updated||0));cs=cs.slice(0,20);
   for(;;){try{localStorage.setItem(SY_PFX+'_cases',JSON.stringify(cs));break}catch(e){if(cs.length<=1)break;cs.pop()}}}
 async function syFetch(id){const r=await syApi(syPath(id),{raw:true});if(!r.ok)throw new Error(syErr(r));return JSON.parse(await r.text())}
@@ -1958,7 +1969,7 @@ async function syPull(){
     if(l&&(l.updated||0)>(remote.updated||0)){syMark(id,true);idx[id]={...syMeta(l,sha)};return}
     idx[id]=syMeta(remote,sha);if(!dirty.has(id)){syStoreLocal(remote);if(CASE&&CASE.id===id&&!BUSY&&(remote.updated||0)>(CASE.updated||0)){CASE=remote;renderCase()}}}));
   // removed on another device
-  for(const id of Object.keys(idx))if(!seen.has(id)&&!dirty.has(id)){delete idx[id];const cs=loadCases().filter(x=>x.id!==id);try{localStorage.setItem(SY_PFX+'_cases',JSON.stringify(cs))}catch(e){}}
+  if(r.ok)for(const id of Object.keys(idx))if(!seen.has(id)&&!dirty.has(id)){delete idx[id];const cs=loadCases().filter(x=>x.id!==id);try{localStorage.setItem(SY_PFX+'_cases',JSON.stringify(cs))}catch(e){}}
   sySetIdx(idx);
   // cases made on this device that are not in the repo yet (incl. history from before sync was turned on)
   for(const c of loc)if(!seen.has(c.id)&&!idx[c.id])syMark(c.id,true);
@@ -1989,7 +2000,7 @@ function syAll(){
 function syLabel(c){if(!c.remote)return caseListLabel(c);const m=c.m;return `${m.reg||'No Tail'} · ATA ${m.ata||'—'} · ${dmy(new Date(m.created||m.updated))}`}
 function syRenderCases(){
   const cases=syAll();const reps=c=>c.remote?c.m.replies:(c.msgs||[]).filter(m=>m.role==='assistant').length;
-  showModal('RECENT CASES',`<div class="hint" id="syStat" style="margin:0 0 6px"></div>`+(cases.length?`<div class="caselist">${cases.map(c=>`<div class="ci"><div class="t" data-id="${c.id}"><div>${esc(syLabel(c))}</div><div>${c.named?esc(c.title)+' · ':''}Updated ${dmyt(c.updated)} · ${(n=>n+(n===1?' reply':' replies'))(reps(c))}${c.by?' · '+esc(c.by):''}${c.remote?' · <span class="ms" style="font-size:14px;vertical-align:-2px" title="Saved on another device">cloud</span>':''}</div></div><button class="btn2 small danger" data-del="${c.id}">Delete</button></div>`).join('')}</div>`:'<div class="kv">No saved cases yet.</div>'));
+  showModal('RECENT CASES',`<div class="hint" id="syStat" style="margin:0 0 6px"></div>`+(cases.length?`<div class="caselist">${cases.map(c=>`<div class="ci"><div class="t" data-id="${c.id}"><div>${esc(syLabel(c))}</div><div>${c.named?esc(c.title)+' · ':''}Updated ${dmyt(c.updated)} · ${(n=>n+(n===1?' reply':' replies'))(reps(c))}${(c.closedAt||(c.m&&c.m.closed))?' · Closed':''}${c.by?' · '+esc(c.by):''}${c.remote?' · <span class="ms" style="font-size:14px;vertical-align:-2px" title="Saved on another device">cloud</span>':''}</div></div><button class="btn2 small danger" data-del="${c.id}">Delete</button></div>`).join('')}</div>`:'<div class="kv">No saved cases yet.</div>'));
   syStat();
   $$('.caselist .t').forEach(el=>el.onclick=async()=>{
     let c=loadCases().find(x=>x.id===el.dataset.id);
@@ -2046,7 +2057,7 @@ async function buildPdf(meta){
   const hdrH=meta.times?62:48;let y=0;
   const font=(st='normal',sz=10,col=C.ink)=>{doc.setFont(SANS,st);doc.setFontSize(sz);doc.setTextColor(...col)};
   function header(){
-    font('bold',9,C.amber);doc.text(pclean(`${APPNAME} TROUBLESHOOTING REPORT`),M,30);
+    font('bold',9,C.amber);doc.text(pclean(`${APPNAME} ${meta.summary?'CASE SUMMARY':'TROUBLESHOOTING REPORT'}`),M,30);
     font('bold',9,C.ink);doc.text('FOR REFERENCE ONLY',W/2,30,{align:'center'});
     font('bold',11,C.ink);const id=pclean(`${meta.reg||'Reg —'}   ·   S/N ${meta.sn||'—'}`);doc.text(id,W-M,30,{align:'right'});
     if(meta.times){font('normal',8.5,C.dim);doc.text(pclean(meta.times),W-M,44,{align:'right'})}
@@ -2109,9 +2120,16 @@ async function buildPdf(meta){
   header();
   font('bold',15,C.ink);doc.text(doc.splitTextToSize(pclean(meta.title),CW),M,y+14);y+=22*Math.min(2,doc.splitTextToSize(pclean(meta.title),CW).length);
   font('normal',9,C.dim);doc.text(pclean(`${APPNAME}${meta.apt?' · Airport '+meta.apt:''} · Opened ${meta.opened} · Exported ${dmyt(new Date())}`),M,y+6,{maxWidth:CW});y+=20;
+  if(meta.summary){
+    font('bold',10,meta.status&&/^Closed/.test(meta.status)?C.dim:C.amber);doc.text(pclean('STATUS: '+(meta.status||'Open')),M,y+4);y+=14;
+    font('normal',8.5,C.dim);doc.text(pclean(`Summary updated ${dmyt(meta.sumAt)}${meta.sumBy?' by '+meta.sumBy:''}. Full troubleshooting report available on request.`),M,y+4,{maxWidth:CW});y+=12;
+    markdown(meta.summary);
+    const ids=[...new Set(CASE.msgs.flatMap(m=>m.role==='user'?m.content.filter(b=>b.type==='image'&&b.photo).map(b=>b.photo):[]))].slice(0,6);
+    if(ids.length){label('PHOTOS',C.teal);let px=M,rowH=0;for(const id of ids){const v=await phGet(id);if(!v)continue;const w=Math.min(CW/3-8,160),h=w*(v.h||3)/(v.w||4);if(px+w>M+CW+1){px=M;y+=rowH+8;rowH=0}need(h+10);try{doc.addImage(phSrc(v),'JPEG',px,y,w,h)}catch(e){}px+=w+12;rowH=Math.max(rowH,h)}if(rowH)y+=rowH+8}
+  }
   // ── conversation
   let lastRole=null;
-  for(const m of CASE.msgs){
+  for(const m of (meta.summary?[]:CASE.msgs)){
     if(m.role==='user'){
       const t=m.content.filter(b=>b.type==='text'&&!b.text.startsWith('<<CONTEXT>>')&&!b.text.startsWith('Tool budget reached')).map(b=>b.text).join('\n');
       const phs=m.content.filter(b=>b.type==='image'&&b.photo);
@@ -2169,13 +2187,18 @@ $('#btnExport').onclick=()=>{
   showModal('EXPORT CASE',`<div class="kv"><b>${esc(CASE.title)}</b><br>${CASE.msgs.filter(m=>m.role==='assistant').length} replies · opened ${esc(dmyt(CASE.created))}</div>
     <div class="grid2"><div class="field"><label>Registration</label><input id="exReg" value="${esc(f.reg||'')}" placeholder="N1KE" autocapitalize="characters" autocomplete="off"></div><div class="field"><label>Serial number</label><input id="exSn" value="${esc(f.sn||'')}" placeholder="${esc(SN_HINT)}" autocomplete="off"></div></div>
     <div class="hint" id="exTimes" style="margin:-4px 0 12px">${esc(timesLine(f)||'No aircraft / engine times entered for this case.')}</div>
-    <button class="btn" id="exPdf">Create PDF</button>
+    <div class="field"><label>Case Summary</label><div class="hint" style="margin:0 0 8px">One-page brief of the problem and the work so far, for Tech Ops, field service reps and crew. Live until the case is closed.</div>
+    <div class="grid2"><button class="btn" id="exSum">Summary PDF</button><button class="btn2" id="exSumView">View Summary</button></div><div id="exSumOut" style="margin-top:10px"></div></div>
+    <div class="field" style="margin-top:6px"><label>Full Report</label><div class="hint" style="margin:0 0 8px">Every step, lookup and line of reasoning.</div>
+    <button class="btn2" id="exPdf" style="width:100%">Full Report PDF</button></div>
     <div id="exOut" style="margin-top:12px"></div>
     <button class="btn2" id="exMd" style="width:100%;margin-top:12px">Download Markdown (.md)</button>
     ${(MEL_OPS[cfg.melOps]||{}).amdl?`<button class="btn2" id="exAmdl" style="width:100%;margin-top:12px">Solairus AMDL (${CASE.clearing?'Completed':CASE.deferral?'MEL Deferral':'Discrepancy'})</button>`:''}`);
   if($('#exAmdl'))$('#exAmdl').onclick=async()=>{sync();if(CASE.deferral)try{await loadMel()}catch(e){}openCaseAmdl()};
   const sync=()=>{f.reg=$('#exReg').value.trim().toUpperCase();f.sn=$('#exSn').value.trim();if(f.reg||f.sn)store.set(LAST_AC_KEY,{reg:f.reg,sn:f.sn});saveCase()};
   $('#exMd').onclick=()=>{sync();exportMarkdown()};
+  $('#exSumView').onclick=()=>{sync();openSummary()};
+  $('#exSum').onclick=async()=>{sync();const b=$('#exSum');b.disabled=true;b.textContent=summaryStale()?'Writing Summary…':'Creating PDF…';try{const {blob,name}=await summaryPdf();b.textContent='✔ PDF ready';pdfOutHtml($('#exSumOut'),blob,name)}catch(e){b.disabled=false;b.textContent='Summary PDF';$('#exSumOut').innerHTML=`<div class="errbox">${esc(e.message)}</div>`}};
   $('#exPdf').onclick=async()=>{
     sync();const btn=$('#exPdf');btn.disabled=true;btn.textContent='Creating PDF…';$('#exOut').innerHTML='';
     try{
@@ -2185,7 +2208,7 @@ $('#btnExport').onclick=()=>{
       $('#exOut').innerHTML=`<div class="kv" style="margin-bottom:8px">${esc(name)} · ${(blob.size/1024).toFixed(0)} KB</div>
         <div class="grid2">${canShare?'<button class="btn" id="exShare">Share / Save</button>':''}<a class="btn2" id="exOpen" href="${url}" download="${esc(name)}" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:center;text-decoration:none;${canShare?'':'grid-column:1/-1'}">${canShare?'Open':'Download PDF'}</a></div>`;
       if(canShare)$('#exShare').onclick=async()=>{try{await navigator.share({files:[file],title:name})}catch(e){if(e.name!=='AbortError')$('#exOut').insertAdjacentHTML('beforeend',`<div class="errbox" style="margin-top:8px">${esc(e.message)}</div>`)}};
-    }catch(e){btn.disabled=false;btn.textContent='Create PDF';$('#exOut').innerHTML=`<div class="errbox">${esc(e.message||String(e))}</div>`}
+    }catch(e){btn.disabled=false;btn.textContent='Full Report PDF';$('#exOut').innerHTML=`<div class="errbox">${esc(e.message||String(e))}</div>`}
   };
 };
 
@@ -2853,6 +2876,119 @@ if(typeof syPush==='function'){const _syPushCase=syPush;syPush=async function(c)
  cam.onchange=()=>{phAdd('intake',cam.files);cam.value=''};lib.onchange=()=>{phAdd('intake',lib.files);lib.value=''};chat.onchange=()=>{phAdd('chat',chat.files);chat.value=''};
  const b1=$('#phCam'),b2=$('#phLib'),b3=$('#phAttach');if(b1)b1.onclick=()=>cam.click();if(b2)b2.onclick=()=>lib.click();if(b3)b3.onclick=()=>chat.click();}
 {const _rf=resetForm;resetForm=function(){_rf.apply(this,arguments);PH.intake=[];phRenderStrip('intake')}}
+/* ═════════════════ CASE SUMMARY (short brief for Tech Ops, field service, crew; live until the case is closed) ═════════════════ */
+const SUM_MODEL='claude-sonnet-5-5';
+const SUM_SYS=`You write the CASE SUMMARY for an aircraft troubleshooting case: a short brief that a technician, Tech Ops, a manufacturer field service rep or the flight crew can read in one minute to understand the problem and where the work stands. It is NOT the full report.
+
+Use only facts in the case transcript. Do not add new troubleshooting, causes or steps that the transcript does not contain. Plain, direct maintenance language. Keep manual citations in square brackets exactly as written in the transcript (e.g. [AMM 21-31-00 p3]). Write dates as 21 OCT 2026. No more than about 350 words.
+
+Use exactly these Markdown sections, in this order (leave a section out only if there is nothing to say):
+### Problem
+1–3 sentences: the symptom, CAS / CMC messages, when and in what conditions it occurs.
+### Done So Far
+Bullets, one per check or action already done, each with its result (e.g. "Ops check IAW AMM … — failed, same CAS"). Include what the technician reported and photos taken if they showed something.
+### Current Assessment
+Leading cause and confidence (High / Medium / Low); causes ruled out and why, in one short line each.
+### Next Steps
+Numbered, short, in order. If the corrective action is complete, say what remains (e.g. sign-off, placard removal).
+### Parts & Dispatch
+Part numbers identified, parts on order, MEL item / category / repair-by date, or "No MEL deferral". Leave out if nothing.
+### Key References
+3–6 of the most important citations.`;
+function caseStatus(c){c=c||CASE;if(!c)return {key:'',text:''};
+  if(c.closedAt)return {key:'closed',text:`Closed ${dmy(new Date(c.closedAt))}${c.closedBy?' by '+c.closedBy:''}`};
+  if(c.clearing)return {key:'cleared',text:'Open · corrective action recorded, ready to close'};
+  if(c.deferral){let t='Open · MEL deferral';try{const g=melById(c.deferral.mel_id),r=g&&g.rel[c.deferral.option];if(g&&r){const iv=melInterval(r,melOps(),new Date(c.created||Date.now()));t=`Open · MEL ${melRef(g).replace(/^MMEL\s*/,'')} Cat ${r.cat} deferred${iv.due?', repair by '+dmy(iv.due):''}`}}catch(e){}return {key:'deferred',text:t}}
+  return {key:'open',text:'Open · troubleshooting in progress'}}
+function summaryStale(){return !CASE||!CASE.summary||CASE.summary.n!==CASE.msgs.length||!!CASE.summary.closed!==!!CASE.closedAt}
+function summaryInput(){
+  const f=CASE.form||{};const L=[];
+  L.push(`Aircraft: ${APPNAME}${f.reg?' · '+f.reg:''}${f.sn?' · S/N '+f.sn:''}${f.apt?' · '+f.apt:''}`);
+  L.push(`Case opened ${dmyt(CASE.created)}; status: ${caseStatus().text}`);
+  if(CASE.deferral)L.push(`Recorded MEL deferral: ${JSON.stringify({mel_id:CASE.deferral.mel_id,option:CASE.deferral.option,discrepancy:CASE.deferral.disc,verification:CASE.deferral.verification})}`);
+  if(CASE.clearing)L.push(`Recorded corrective action: ${JSON.stringify(CASE.clearing)}`);
+  L.push('','TRANSCRIPT:');
+  for(const m of CASE.msgs){
+    if(m.role==='user'){const t=m.content.filter(b=>b.type==='text'&&!b.text.startsWith('<<CONTEXT>>')&&!b.text.startsWith('Tool budget reached')).map(b=>b.text).join('\n');
+      const n=m.content.filter(b=>b.type==='image').length;if(t||n)L.push(`TECHNICIAN: ${t}${n?` [${n} photo${n>1?'s':''} attached]`:''}`)}
+    else{const tools=m.content.filter(b=>b.type==='tool_use').map(b=>toolLabel(b));const t=m.content.filter(b=>b.type==='text'&&b.text).map(b=>b.text).join('\n');
+      if(tools.length)L.push(`(lookups: ${tools.join('; ')})`);if(t)L.push(`ASSISTANT: ${t}`)}}
+  let s=L.join('\n');if(s.length>150000)s=s.slice(0,20000)+'\n…(middle of the case omitted)…\n'+s.slice(-130000);return s;
+}
+async function claudeOnce(system,text,max=2000){
+  const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'content-type':'application/json','x-api-key':cfg.anthropicKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+    body:JSON.stringify({model:SUM_MODEL,max_tokens:max,system,messages:[{role:'user',content:text}]})});
+  if(!res.ok){let t=await res.text();try{t=JSON.parse(t).error.message}catch(e){}throw new Error(`Anthropic API ${res.status}: ${t}`)}
+  const j=await res.json();CASE.usage.in+=(j.usage&&j.usage.input_tokens)||0;CASE.usage.out+=(j.usage&&j.usage.output_tokens)||0;
+  return (j.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n').trim();
+}
+let SUM_BUSY=null;
+async function makeSummary(force){
+  if(!CASE)throw new Error('Open a case first.');if(!cfg.anthropicKey)throw new Error('Add your Anthropic API key in Settings to create the summary.');
+  if(!force&&!summaryStale())return CASE.summary;if(SUM_BUSY)return SUM_BUSY;
+  const c=CASE;
+  SUM_BUSY=(async()=>{try{
+    const md=await claudeOnce(SUM_SYS,summaryInput());
+    const tech=(typeof syCfg==='function'&&syCfg().tech)||'';
+    c.summary={md,at:Date.now(),n:c.msgs.length,closed:!!c.closedAt,by:tech};
+    if(CASE===c){saveCase();caseStatusBar()}
+    if(typeof syOn==='function'&&syOn())syPutSummary(c).catch(()=>{});
+    return c.summary}finally{SUM_BUSY=null}})();
+  return SUM_BUSY;
+}
+function summaryMarkdownFile(c){const f=c.form||{};const st=caseStatus(c);
+  return `# ${APPNAME} Case Summary — ${f.reg||'No tail'}${f.sn?' (S/N '+f.sn+')':''}\n\n**Status:** ${st.text}  \n**Case:** ${c.title||''} · opened ${dmyt(c.created)}  \n**Summary updated:** ${dmyt(c.summary.at)}${c.summary.by?' by '+c.summary.by:''}\n\n${c.summary.md}\n\n---\n_Live summary from Mx Magic. Troubleshooting aid output: verify against the current approved maintenance data._\n`}
+async function syPutSummary(c){
+  const path=`cases/${SY_AC}/${c.id}-summary.md`;let sha=null;
+  const g=await syApi(path);if(g.ok)sha=(await g.json()).sha;
+  const r=await syApi(path,{method:'PUT',body:JSON.stringify({message:`${SY_AC} ${(c.form&&c.form.reg)||''} summary · ${caseStatus(c).text}`.slice(0,120),content:b64utf8(summaryMarkdownFile(c)),...(sha?{sha}:{})})});
+  if(!r.ok)throw new Error(syErr(r));
+}
+function summaryPdfName(meta){const tail=(meta.reg||APPNAME).replace(/[^A-Za-z0-9-]/g,'');return `${[tail,'SUMMARY',caseAta(CASE.form),dateCode(new Date())].filter(Boolean).join('_')}.pdf`}
+async function summaryPdf(){
+  await makeSummary(false);
+  const meta={...exportMeta(),summary:CASE.summary.md,status:caseStatus().text,sumAt:CASE.summary.at,sumBy:CASE.summary.by};
+  const blob=await buildPdf(meta);return {blob,name:summaryPdfName(meta)};
+}
+function pdfOutHtml(box,blob,name){
+  const file=new File([blob],name,{type:'application/pdf'}),url=URL.createObjectURL(blob);const canShare=!!(navigator.canShare&&navigator.canShare({files:[file]}));
+  box.innerHTML=`<div class="kv" style="margin-bottom:8px">${esc(name)} · ${(blob.size/1024).toFixed(0)} KB</div>
+    <div class="grid2">${canShare?'<button class="btn" data-share>Share / Save</button>':''}<a class="btn2" href="${url}" download="${esc(name)}" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:center;text-decoration:none;${canShare?'':'grid-column:1/-1'}">Open PDF</a></div>`;
+  const s=box.querySelector('[data-share]');if(s)s.onclick=async()=>{try{await navigator.share({files:[file],title:name})}catch(e){if(e.name!=='AbortError')box.insertAdjacentHTML('beforeend',`<div class="errbox" style="margin-top:8px">${esc(e.message)}</div>`)}};
+}
+function summaryAge(){if(!CASE.summary)return 'No summary yet.';const n=CASE.msgs.length-CASE.summary.n;
+  return `Updated ${dmyt(CASE.summary.at)}${CASE.summary.by?' by '+esc(CASE.summary.by):''}${n>0&&!CASE.closedAt?` · ${Math.ceil(n/2)} new update${n>2?'s':''} since, refreshed when you open it`:''}`}
+function openSummary(){
+  if(!CASE)return;
+  const body=()=>`<div class="sumstat ${caseStatus().key}">${esc(caseStatus().text)}</div>
+    <div class="hint" style="margin:6px 0 10px">${summaryAge()}</div>
+    <div class="aitext sumbody">${CASE.summary?md(CASE.summary.md):'<div class="kv">Creating the summary…</div>'}</div>
+    <div class="grid2" style="margin-top:14px"><button class="btn" id="smPdf">Summary PDF</button><button class="btn2" id="smCopy">Copy Text</button></div>
+    <div id="smOut" style="margin-top:12px"></div>
+    <div class="grid2" style="margin-top:8px"><button class="btn2" id="smRefresh">Refresh Summary</button><button class="btn2" id="smClose">${CASE.closedAt?'Reopen Case':'Close Case'}</button></div>
+    <div class="hint" style="margin-top:10px">A one-page brief for Tech Ops, field service reps and crew. It updates after each reply until the case is closed${typeof syOn==='function'&&syOn()?', and every technician with case sync sees the same summary':''}.</div>`;
+  const draw=()=>{showModal('CASE SUMMARY',body());wire()};
+  const wire=()=>{
+    $('#smPdf').onclick=async()=>{const b=$('#smPdf');b.disabled=true;b.textContent='Creating PDF…';try{const {blob,name}=await summaryPdf();b.textContent='✔ PDF ready';pdfOutHtml($('#smOut'),blob,name)}catch(e){b.disabled=false;b.textContent='Summary PDF';$('#smOut').innerHTML=`<div class="errbox">${esc(e.message)}</div>`}};
+    $('#smCopy').onclick=async()=>{if(!CASE.summary)return;const t=summaryMarkdownFile(CASE).replace(/\*\*/g,'').replace(/^#+\s*/gm,'');try{await navigator.clipboard.writeText(t);$('#smCopy').textContent='✔ Copied'}catch(e){$('#smOut').innerHTML=`<textarea readonly style="width:100%;height:200px">${esc(t)}</textarea>`}};
+    $('#smRefresh').onclick=async()=>{const b=$('#smRefresh');b.disabled=true;b.textContent='Refreshing…';try{await makeSummary(true);draw()}catch(e){b.disabled=false;b.textContent='Refresh Summary';$('#smOut').innerHTML=`<div class="errbox">${esc(e.message)}</div>`}};
+    $('#smClose').onclick=async()=>{
+      if(CASE.closedAt){delete CASE.closedAt;delete CASE.closedBy;saveCase();caseStatusBar();draw();return}
+      const b=$('#smClose');if(!b.dataset.confirm){b.dataset.confirm='1';b.textContent='Tap Again To Close';return}
+      CASE.closedAt=Date.now();CASE.closedBy=(typeof syCfg==='function'&&syCfg().tech)||'';saveCase();caseStatusBar();draw();
+      try{await makeSummary(true);draw()}catch(e){$('#smOut').innerHTML=`<div class="errbox">${esc(e.message)}</div>`}};
+  };
+  draw();
+  if(summaryStale())makeSummary(false).then(()=>{if(/case summary/i.test($('#modalTitle').textContent))draw()}).catch(e=>{const o=$('#smOut');if(o)o.innerHTML=`<div class="errbox">${esc(e.message)}</div>`});
+}
+// status bar at the top of an open case
+function caseStatusBar(){const log=$('#chatLog');if(!log||!CASE)return;let b=$('#caseStat');
+  if(!b){b=document.createElement('button');b.id='caseStat';b.type='button';b.className='casestat';b.onclick=openSummary}
+  if(log.firstChild!==b)log.prepend(b);const st=caseStatus();b.dataset.k=st.key;
+  b.innerHTML=`<span class="dot"></span><span class="st">${esc(st.text)}</span><span class="go">Summary<span class="ms">chevron_right</span></span>`}
+{const _rcS=renderCase;renderCase=function(){_rcS.apply(this,arguments);caseStatusBar()}}
+// keep the summary live: refresh after each finished reply once a summary exists, until the case is closed
+{const _raS=runAgent;runAgent=async function(){const r=await _raS.apply(this,arguments);try{caseStatusBar();if(CASE&&CASE.summary&&!CASE.closedAt&&summaryStale())makeSummary(false).catch(()=>{})}catch(e){}return r}}
 /* ═════════════════ BOOT ═════════════════ */
 (async function boot(){
   renderFaultChips();renderFollowChips();
