@@ -481,6 +481,21 @@ header .gsearch{margin-top:8px}
 /* fleet: MEL-only aircraft (no manuals loaded yet) */
 body.melonly .tab[data-tab=describe],body.melonly .tab[data-tab=search],body.melonly .tab[data-tab=wiring],body.melonly #btnNew,body.melonly #btnCases,body.melonly #btnExport,body.melonly .sessrow,body.melonly .gsearch,body.melonly #aiBadge{display:none!important}
 .melopthd{font-size:13.5px;line-height:1.4;margin:0 0 8px;color:var(--text)}.melopthd b{color:var(--cyan);font-weight:500}
+
+/* photos */
+.phbtns{display:flex;gap:8px;flex-wrap:wrap}
+.phbtns .btn2{display:inline-flex;align-items:center;gap:6px}
+.phstrip{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.phstrip.hidden{display:none}
+.phstrip .ph{position:relative;width:76px;height:76px;border-radius:12px;overflow:hidden;background:var(--panel)}
+.phstrip .ph img{width:100%;height:100%;object-fit:cover;cursor:zoom-in;display:block}
+.phstrip .ph .x{position:absolute;top:3px;right:3px;width:24px;height:24px;border-radius:50%;border:none;background:rgba(0,0,0,.6);color:#fff;display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer}
+.phstrip .ph .x .ms{font-size:16px}
+#phChat{margin:0 0 8px}
+.msg .phs{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.msg .phs img{width:96px;height:96px;object-fit:cover;border-radius:10px;cursor:zoom-in;background:var(--panel)}
+.msg .phs img.missing{opacity:.35}
+.crow .phattach{flex-shrink:0;align-self:flex-end}
 </style>
 </head>
 <body>
@@ -587,6 +602,11 @@ body.melonly .tab[data-tab=describe],body.melonly .tab[data-tab=search],body.mel
           </details>
         </div>
 
+        <div class="card" id="photoCard"><h3>Photos</h3>
+          <div class="phbtns"><button class="btn2 small" id="phCam" type="button"><span class="ms">photo_camera</span>Take Photo</button><button class="btn2 small" id="phLib" type="button"><span class="ms">photo_library</span>Photo Library</button></div>
+          <div class="phstrip hidden" id="phIntake"></div>
+          <div class="hint">CAS or CMC screens, the failed part, connectors, leaks, placards. Claude looks at every photo.</div>
+        </div>
         <button class="btn" id="btnStart">Fix My Plane ▸</button>
         <div class="disclaimer">Troubleshooting aid only. It reasons from the indexed G600 manuals (AMM, SDM, iWDM, IPC, SWPM, FSI) and cites pages. There is no G600 FIM in this library. The current revision of the approved maintenance data governs all maintenance and return-to-service decisions.</div>
       </div>
@@ -644,7 +664,9 @@ body.melonly .tab[data-tab=describe],body.melonly .tab[data-tab=search],body.mel
       <div id="chatLog"></div>
       <div id="composer">
         <div class="qchips" id="followChips"></div>
+        <div class="phstrip hidden" id="phChat"></div>
         <div class="crow">
+          <button class="iconbtn phattach" id="phAttach" type="button" title="Add a photo"><span class="ms">add_photo_alternate</span></button>
           <textarea id="chatInput" rows="1" placeholder="Report a result or ask a follow-up…"></textarea>
           <button class="send" id="btnSend"><span class="ms">arrow_upward</span></button>
         </div>
@@ -1137,6 +1159,7 @@ Known gaps: ${(m.gaps||[]).join(' | ')}
 Do not stop at one search: search, read the relevant pages, cross-check between manuals. Keep tool calls purposeful (typically 3–10 per turn).
 
 # Rules
+- The technician can attach photos (CAS / CMC screens, the failed part, connectors, wiring, leaks, placards). Look at each photo carefully: say what you see that matters, read any visible text (CAS or CMC messages, part numbers, connector or wire labels, placards) and use it as evidence. If a photo is unclear or does not show what you need, say exactly what photo to take.
 - Write every date as day, three-letter month in capitals, four-digit year: 21 OCT 2026 (also in logbook / corrective-action wording).
 - Cite every manual-derived fact inline using the citation strings returned by tools, in square brackets, e.g. [AMM 21-61-03-280B p2], [SDM 21-00-00 p3], [FSI 21 p129], [iWDM 73P2120006J_TP sh 3.000], [iWDM 006A5P1 pin-out]. Never invent citations.
 - Never invent part numbers, limits, tolerances, torque values, pin numbers, wire numbers or task numbers. If you cannot find it, say so and point to where it should be.
@@ -1202,7 +1225,7 @@ async function runAgent(){
   const view=newAiBubble();
   try{
     for(let iter=0;iter<16;iter++){
-      const body={model:cfg.model,max_tokens:useThinking?20000:8000,system:sys,tools,messages:withCacheBreakpoint(CASE.msgs)};
+      const body={model:cfg.model,max_tokens:useThinking?20000:8000,system:sys,tools,messages:await phHydrate(withCacheBreakpoint(CASE.msgs))};
       if(useThinking)body.thinking={type:'enabled',budget_tokens:8000};
       let resp;
       try{resp=await callClaude(body,view.handlers())}
@@ -1328,11 +1351,12 @@ function renderCase(){
   for(const m of CASE.msgs){
     if(m.role==='user'){
       const vis=m.content.filter(b=>b.type==='text'&&!b.text.startsWith('<<CONTEXT>>')&&!b.text.startsWith('Tool budget reached'));
-      if(!vis.length)continue;aiWrap=null;
+      const phs=m.content.filter(b=>b.type==='image'&&b.photo).map(b=>b.photo);
+      if(!vis.length&&!phs.length)continue;aiWrap=null;
       const d=document.createElement('div');d.className='msg user';
       const t=vis.map(b=>b.text).join('\n');
-      if(t.startsWith('NEW TROUBLESHOOTING CASE')){d.innerHTML=`<div class="casehdr">▸ CASE OPENED</div>${esc(t.replace(/^NEW TROUBLESHOOTING CASE\n?/,''))}`}else d.textContent=t;
-      log.appendChild(d);
+      if(t.startsWith('NEW TROUBLESHOOTING CASE')){d.innerHTML=`<div class="casehdr">▸ CASE OPENED</div>${esc(t.replace(/^NEW TROUBLESHOOTING CASE\n?/,''))}`}else d.textContent=t||(phs.length>1?phs.length+' photos':'Photo');
+      phThumbs(d,phs);log.appendChild(d);
     }else{
       if(!aiWrap){aiWrap=document.createElement('div');aiWrap.className='msg ai';log.appendChild(aiWrap)}
       for(const b of m.content){
@@ -1818,7 +1842,7 @@ $('#btnStart').onclick=async()=>{
   f.faults.forEach(x=>{if(x.cite&&x.doc!=null)registerSource({cite:x.cite,doc_id:x.doc,pdf_page:x.page})});
   f.cmc.forEach(x=>(x.refs||[]).forEach(r=>registerSource({cite:r[2],doc_id:r[0],pdf_page:r[1]})));
   const title=shortTitle(f);
-  CASE={id:Date.now().toString(36),title,created:Date.now(),updated:Date.now(),form:f,usage:{in:0,out:0},msgs:[{role:'user',content:[{type:'text',text}]}]};
+  CASE={id:Date.now().toString(36),title,created:Date.now(),updated:Date.now(),form:f,usage:{in:0,out:0},msgs:[{role:'user',content:[{type:'text',text},...phTake('intake')]}]};
   {const n=$('#sessName')?$('#sessName').value.trim():'';CASE.autoTitle=CASE.title;if(n){CASE.title=n;CASE.named=true}}
   showChat();renderCase();saveCase();runAgent();
 };
@@ -1834,11 +1858,12 @@ function renderFollowChips(){$('#followChips').innerHTML=FOLLOW.map(t=>`<button 
 function setSendState(){const s=$('#btnSend');s.classList.toggle('stop',BUSY);s.innerHTML=BUSY?'<span class="ms fill">stop</span>':'<span class="ms">arrow_upward</span>';s.title=BUSY?'Stop':'Send'}
 function sendChat(){
   if(BUSY){ABORT?.abort();return}
-  const t=$('#chatInput').value.trim();if(!t||!CASE)return;
+  const t=$('#chatInput').value.trim();if((!t&&!PH.chat.length)||!CASE)return;const ph=phTake('chat');
   $('#chatInput').value='';autoGrow();
   const last=CASE.msgs[CASE.msgs.length-1];
-  if(last&&last.role==='user'){last.content.push({type:'text',text:t})}else CASE.msgs.push({role:'user',content:[{type:'text',text:t}]});
-  const d=document.createElement('div');d.className='msg user';d.textContent=t;$('#chatLog').appendChild(d);stickBottom=true;autoScroll();
+  const blocks=[...(t?[{type:'text',text:t}]:[]),...ph];
+  if(last&&last.role==='user'){last.content.push(...blocks)}else CASE.msgs.push({role:'user',content:blocks});
+  const d=document.createElement('div');d.className='msg user';d.textContent=t||(ph.length>1?ph.length+' photos':'Photo');phThumbs(d,ph.map(b=>b.photo));$('#chatLog').appendChild(d);stickBottom=true;autoScroll();
   runAgent();
 }
 $('#btnSend').onclick=sendChat;
@@ -2089,9 +2114,11 @@ async function buildPdf(meta){
   for(const m of CASE.msgs){
     if(m.role==='user'){
       const t=m.content.filter(b=>b.type==='text'&&!b.text.startsWith('<<CONTEXT>>')&&!b.text.startsWith('Tool budget reached')).map(b=>b.text).join('\n');
-      if(!t)continue;label('TECHNICIAN',C.teal);lastRole='user';
+      const phs=m.content.filter(b=>b.type==='image'&&b.photo);
+      if(!t&&!phs.length)continue;label('TECHNICIAN',C.teal);lastRole='user';
       // aircraft details (registration, serial, times, airport) live only in the page header / details line
       t.replace(/^NEW TROUBLESHOOTING CASE\n?/,'').split('\n').filter(ln=>!/^(Aircraft|Times|Airport): /.test(ln)).forEach(ln=>{if(!ln.trim()){y+=4;return}const b=ln.match(/^\s+•\s*(.*)/);b?para(b[1],{indent:16,bullet:'•'}):para(ln)});
+      {let px=M,rowH=0;for(const b of phs){const v=await phGet(b.photo);if(!v)continue;const w=Math.min(CW/2-6,230),h=w*(v.h||3)/(v.w||4);if(px+w>M+CW+1){px=M;y+=rowH+8;rowH=0}need(h+12);if(px===M&&rowH===0)y+=4;try{doc.addImage(phSrc(v),'JPEG',px,y,w,h)}catch(e){}px+=w+12;rowH=Math.max(rowH,h)}if(rowH)y+=rowH+8}
     }else{
       const tools=m.content.filter(b=>b.type==='tool_use').map(b=>toolLabel(b));
       const txt=m.content.filter(b=>b.type==='text'&&b.text).map(b=>b.text).join('\n\n');
@@ -2756,6 +2783,76 @@ $('#wGo').onclick=doWiring;$('#wQuery').addEventListener('keydown',e=>{if(e.key=
 /* iWDM serial set follows the S/N on the form, or the open case's S/N */
 {const sn=$('#fSn');if(sn){let t;sn.addEventListener('input',()=>{clearTimeout(t);t=setTimeout(()=>{if(!CASE)applyWiringSet(sn.value.trim())},500)})}}
 {const _wsRender=renderCase;renderCase=function(){_wsRender.apply(this,arguments);if(CASE&&CASE.form)applyWiringSet(CASE.form.sn||'')}}
+/* ═════════════════ PHOTOS (take or attach; kept on the device; Claude sees them) ═════════════════ */
+// Photos are shrunk to 1568 px (JPEG), stored in this browser's IndexedDB, and referenced in the case as {type:'image',photo:id}.
+// They are turned into real image blocks only when a request goes to the API. With case sync on they are also saved to the cases repo.
+const PH_MAX=1568,PH_Q=0.82,PH={intake:[],chat:[]};
+let PH_DB=null;const phMem=new Map();
+function phDb(){if(!PH_DB)PH_DB=new Promise((ok,no)=>{const r=indexedDB.open('mxm_photos',1);r.onupgradeneeded=()=>r.result.createObjectStore('p');r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)});return PH_DB}
+async function phPut(id,v){const db=await phDb();return new Promise((ok,no)=>{const t=db.transaction('p','readwrite');t.objectStore('p').put(v,id);t.oncomplete=()=>ok();t.onerror=()=>no(t.error)})}
+async function phLocal(id){if(phMem.has(id))return phMem.get(id);try{const db=await phDb();const v=await new Promise(ok=>{const r=db.transaction('p').objectStore('p').get(id);r.onsuccess=()=>ok(r.result||null);r.onerror=()=>ok(null)});if(v)phMem.set(id,v);return v}catch(e){return null}}
+async function phGet(id){let v=await phLocal(id);if(!v&&typeof syFetchPhoto==='function'){v=await syFetchPhoto(id).catch(()=>null);if(v){phMem.set(id,v);phPut(id,v).catch(()=>{})}}return v}
+const phSrc=v=>`data:${v.mt};base64,${v.data}`;
+async function phFromFile(file){
+  const url=URL.createObjectURL(file);
+  try{
+    const img=await new Promise((ok,no)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=()=>no(new Error(`Could not read ${file.name||'that photo'}. Use a JPEG, PNG or HEIC photo.`));i.src=url});
+    const k=Math.min(1,PH_MAX/Math.max(img.naturalWidth,img.naturalHeight)),w=Math.max(1,Math.round(img.naturalWidth*k)),h=Math.max(1,Math.round(img.naturalHeight*k));
+    const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,w,h);x.drawImage(img,0,0,w,h);
+    const v={data:c.toDataURL('image/jpeg',PH_Q).split(',')[1],mt:'image/jpeg',w,h,name:file.name||'',at:Date.now()};
+    const id='ph'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+    phMem.set(id,v);await phPut(id,v).catch(()=>{});return id;
+  }finally{URL.revokeObjectURL(url)}
+}
+function phOpen(id){phGet(id).then(v=>{if(!v){showModal('PHOTO','<div class="kv">This photo is not on this device. Turn on case sync on the device that took it.</div>');return}
+  showModal('PHOTO',`<img src="${phSrc(v)}" alt="Photo" style="width:100%;height:auto;border-radius:12px;display:block"><div class="hint" style="margin-top:8px">${v.w} × ${v.h}${v.name?' · '+esc(v.name):''} · ${esc(dmyt(v.at))}</div>`)})}
+// thumbnails (pending list with remove buttons, or read-only in a chat bubble)
+function phRenderStrip(which){const el=$(which==='intake'?'#phIntake':'#phChat');if(!el)return;const L=PH[which];
+  el.innerHTML='';el.classList.toggle('hidden',!L.length);
+  L.forEach((id,i)=>{const d=document.createElement('div');d.className='ph';d.innerHTML=`<img alt="Photo ${i+1}"><button class="x" title="Remove" aria-label="Remove photo"><span class="ms">close</span></button>`;
+    phLocal(id).then(v=>{if(v)d.querySelector('img').src=phSrc(v)});d.querySelector('img').onclick=()=>phOpen(id);
+    d.querySelector('.x').onclick=()=>{PH[which].splice(PH[which].indexOf(id),1);phRenderStrip(which)};el.appendChild(d)})}
+function phThumbs(parent,ids){if(!ids.length)return;const w=document.createElement('div');w.className='phs';
+  ids.forEach(id=>{const im=document.createElement('img');im.alt='Photo';im.onclick=()=>phOpen(id);phGet(id).then(v=>{if(v)im.src=phSrc(v);else im.classList.add('missing')});w.appendChild(im)});parent.appendChild(w)}
+async function phAdd(which,files){
+  for(const f of [...files||[]].slice(0,10)){try{PH[which].push(await phFromFile(f))}catch(e){alertBar(e.message)}}
+  phRenderStrip(which);
+}
+function alertBar(msg){const b=document.createElement('div');b.className='errbox';b.style.margin='8px 0';b.textContent=msg;const at=$('#phIntake')||document.body;at.parentElement.insertBefore(b,at);setTimeout(()=>b.remove(),5000)}
+function phTake(which){const L=PH[which].slice();PH[which]=[];phRenderStrip(which);return L.map(id=>({type:'image',photo:id}))}
+// image blocks for the API (copies; the case keeps only the photo id)
+async function phHydrate(msgs){
+  const out=[];for(const m of msgs){
+    if(m.role!=='user'||!m.content.some(b=>b.type==='image'&&b.photo)){out.push(m);continue}
+    const content=[];for(const b of m.content){
+      if(b.type==='image'&&b.photo){const v=await phGet(b.photo);
+        content.push(v?{type:'image',source:{type:'base64',media_type:v.mt,data:v.data},...(b.cache_control?{cache_control:b.cache_control}:{})}:{type:'text',text:'[A photo was attached here but is not available on this device.]',...(b.cache_control?{cache_control:b.cache_control}:{})})}
+      else content.push(b)}
+    out.push({...m,content})}
+  return out;
+}
+// case sync: photos go to cases/<TYPE>/photos/<id>.jpg once, and are fetched on another device when a case shows them
+const SY_PH=(typeof SY_PFX!=='undefined'?SY_PFX:'x')+'_syncph';
+async function syPushPhotos(c){
+  if(typeof syOn!=='function'||!syOn())return;const done=new Set(store.get(SY_PH,[]));
+  const ids=[...new Set((c.msgs||[]).flatMap(m=>m.role==='user'?m.content.filter(b=>b.type==='image'&&b.photo).map(b=>b.photo):[]))].filter(id=>!done.has(id));
+  for(const id of ids){const v=await phLocal(id);if(!v)continue;
+    const r=await syApi(`cases/${SY_AC}/photos/${id}.jpg`,{method:'PUT',body:JSON.stringify({message:`${SY_AC} photo ${id}`,content:v.data})});
+    if(r.ok||r.status===422){done.add(id);store.set(SY_PH,[...done])}else throw new Error(syErr(r))}
+}
+async function syFetchPhoto(id){
+  if(typeof syOn!=='function'||!syOn())return null;const r=await syApi(`cases/${SY_AC}/photos/${id}.jpg`,{raw:true});if(!r.ok)return null;
+  const u8=new Uint8Array(await r.arrayBuffer());let b='';for(let i=0;i<u8.length;i+=0x8000)b+=String.fromCharCode.apply(null,u8.subarray(i,i+0x8000));
+  const v={data:btoa(b),mt:'image/jpeg',w:0,h:0,name:'',at:Date.now()};
+  await new Promise(ok=>{const i=new Image();i.onload=()=>{v.w=i.naturalWidth;v.h=i.naturalHeight;ok()};i.onerror=ok;i.src=phSrc(v)});return v;
+}
+if(typeof syPush==='function'){const _syPushCase=syPush;syPush=async function(c){await syPushPhotos(c);return _syPushCase(c)}}
+// buttons
+{const mk=(id,attrs)=>{const i=document.createElement('input');i.type='file';i.accept='image/*';i.id=id;i.hidden=true;Object.assign(i,attrs);document.body.appendChild(i);return i};
+ const cam=mk('phCamIn',{}),lib=mk('phLibIn',{multiple:true}),chat=mk('phChatIn',{multiple:true});cam.setAttribute('capture','environment');
+ cam.onchange=()=>{phAdd('intake',cam.files);cam.value=''};lib.onchange=()=>{phAdd('intake',lib.files);lib.value=''};chat.onchange=()=>{phAdd('chat',chat.files);chat.value=''};
+ const b1=$('#phCam'),b2=$('#phLib'),b3=$('#phAttach');if(b1)b1.onclick=()=>cam.click();if(b2)b2.onclick=()=>lib.click();if(b3)b3.onclick=()=>chat.click();}
+{const _rf=resetForm;resetForm=function(){_rf.apply(this,arguments);PH.intake=[];phRenderStrip('intake')}}
 /* ═════════════════ BOOT ═════════════════ */
 (async function boot(){
   renderFaultChips();renderFollowChips();
