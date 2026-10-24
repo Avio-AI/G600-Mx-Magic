@@ -24,11 +24,10 @@
    data repo; this page loads the selected aircraft's app into the page and adds the aircraft picker to its top bar.
    Switching aircraft reloads the page, so only one aircraft's manuals are ever in memory. */
 const FLEET={
-  G600:{name:'G600',full:'Gulfstream G600 (GVII-G600)',src:'/G600-Mx-Magic/g600.html',prefix:'g600ts'},
   G550:{name:'G550',full:'Gulfstream G550 (GV-SP)',src:'/G550-troubleshooter/index.html',prefix:'g550ts'},
-  // MEL-only types (MMEL / MOPP dispatch relief; manuals not loaded yet): the G600 app code running on a MEL-only profile
   G650:{name:'G650',full:'Gulfstream G650 / G650ER (GVI) · MEL only',src:'/G600-Mx-Magic/g600.html',prefix:'g650ts',melOnly:true,
     cfg:{name:'G650',prefix:'g650ts',dataRepo:'Avio-AI/Gulfstream-MEL-Data',dataPath:'g650/',localRoot:'C:\\Gulfstream PDFs\\G650\\',melOnly:true}},
+  G600:{name:'G600',full:'Gulfstream G600 (GVII-G600)',src:'/G600-Mx-Magic/g600.html',prefix:'g600ts'},
   G700:{name:'G700',full:'Gulfstream G700 (GVIII) · MEL only',src:'/G600-Mx-Magic/g600.html',prefix:'g700ts',melOnly:true,
     cfg:{name:'G700',prefix:'g700ts',dataRepo:'Avio-AI/Gulfstream-MEL-Data',dataPath:'g700/',localRoot:'C:\\Gulfstream PDFs\\G700\\',melOnly:true}},
   G800:{name:'G800',full:'Gulfstream G800 (GVIII) · MEL only',src:'/G600-Mx-Magic/g600.html',prefix:'g800ts',melOnly:true,
