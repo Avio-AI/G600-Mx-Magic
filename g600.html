@@ -479,7 +479,8 @@ header .gsearch{margin-top:8px}
 
 
 /* fleet: MEL-only aircraft (no manuals loaded yet) */
-body.melonly .tab[data-tab=describe],body.melonly .tab[data-tab=search],body.melonly .tab[data-tab=wiring],body.melonly #btnNew,body.melonly #btnCases,body.melonly #btnExport,body.melonly .sessrow,body.melonly .gsearch,body.melonly #aiBadge{display:none!important}
+body.melonly #caseForm,body.melonly #searchPane,body.melonly #wiringPane{display:none!important}
+#moNote{display:none}body.melonly.mo-show #moNote{display:block}
 .melopthd{font-size:13.5px;line-height:1.4;margin:0 0 8px;color:var(--text)}.melopthd b{color:var(--cyan);font-weight:500}
 
 /* photos */
@@ -536,6 +537,7 @@ body.melonly .tab[data-tab=describe],body.melonly .tab[data-tab=search],body.mel
         <button class="tab" data-tab="wiring"><span class="pill"><span class="ms">cable</span></span>Wiring</button>
       </div>
 
+      <div class="card" id="moNote"><h3 id="moTitle">Manuals Not Loaded</h3><div class="kv" id="moText"></div><button class="btn" id="moGo" type="button" style="margin-top:12px">Go To MEL</button></div>
       <div id="caseForm">
 
         <div class="card" id="faultCard">
@@ -2996,7 +2998,13 @@ function caseStatusBar(){const log=$('#chatLog');if(!log||!CASE)return;let b=$('
   const needsSetup=cfg.dataMode==='github'&&!cfg.githubToken;
   if(needsSetup){setDot('err');renderBadges('Not connected — open Settings');openSettings('Welcome. Connect your private manual data repo and add your Anthropic API key to get started.');}
   else await loadCore();
-  if(FC&&FC.melOnly){document.body.classList.add('melonly');const mi=$('#melInput');if(mi)mi.placeholder='Inoperative item or CAS message, e.g. Pack, Autothrottle, 21-1';const t=document.querySelector('.tab[data-tab=mel]');if(t)t.click();return}
+  if(FC&&FC.melOnly){document.body.classList.add('melonly');
+    // MEL-only aircraft: every tab and button stays; Describe / Search / Wiring explain that the manuals aren't loaded yet
+    const what={describe:'AI troubleshooting',search:'manual search',wiring:'wiring lookup'};
+    const note=k=>{document.body.classList.toggle('mo-show',k!=='mel');if(k==='mel')return;
+      $('#moText').innerHTML=`The ${esc(APPNAME)} maintenance manuals (AMM, IPC, wiring diagrams and the rest) aren't loaded yet, so ${what[k]||'this tab'} isn't available for the ${esc(APPNAME)}. The MEL tab works now: dispatch relief by operating rule and the deferral paperwork.`};
+    $$('.tab').forEach(t=>t.addEventListener('click',()=>note(t.dataset.tab)));$('#moGo').onclick=()=>{const m=document.querySelector('.tab[data-tab=mel]');if(m)m.click()};
+    const gs=$('#gSearch');if(gs)gs.addEventListener('click',()=>note('search'));const mi=$('#melInput');if(mi)mi.placeholder='Inoperative item or CAS message, e.g. Pack, Autothrottle, 21-1';const t=document.querySelector('.tab[data-tab=mel]');if(t)t.click();return}
   const cur=store.get(PFX+'_current',null);
   if(cur){const c=loadCases().find(x=>x.id===cur);if(c){CASE=c;showChat();renderCase()}}
 })();
