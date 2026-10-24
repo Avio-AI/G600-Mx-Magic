@@ -56,8 +56,18 @@ function fleetUi(){
   const F=window.FLEET,AC=window.FLEET_AC;
   const rd=k=>{try{return JSON.parse(localStorage.getItem(k)||'null')}catch(e){return null}};
   // tails each aircraft has seen (its last aircraft + its saved cases)
-  const tailsFor=k=>{const P=F[k].prefix,set=new Map();const last=rd(P+'_lastac');if(last&&last.reg)set.set(String(last.reg).toUpperCase(),last.sn||'');
-    for(const c of rd(P+'_cases')||[]){const r=c&&c.form&&String(c.form.reg||'').toUpperCase();if(r&&!set.has(r))set.set(r,c.form.sn||'')}return set};
+  // tails removed from the list: {TYPE:{REG:time removed}}; a tail comes back when a case for it is saved after that
+  const hidden=()=>rd('fleet_hidden_tails')||{};
+  const setHidden=h=>{try{localStorage.setItem('fleet_hidden_tails',JSON.stringify(h))}catch(e){}};
+  const tailsFor=k=>{const P=F[k].prefix,set=new Map(),hid=hidden()[k]||{};const last=rd(P+'_lastac');
+    const cases=(rd(P+'_cases')||[]).filter(c=>c&&c.form&&c.form.reg);
+    const ok=r=>!hid[r]||cases.some(c=>String(c.form.reg).toUpperCase()===r&&(c.updated||0)>hid[r]);
+    if(last&&last.reg){const r=String(last.reg).toUpperCase();if(ok(r))set.set(r,last.sn||'')}
+    for(const c of cases){const r=String(c.form.reg).toUpperCase();if(!set.has(r)&&ok(r))set.set(r,c.form.sn||'')}return set};
+  function removeTail(k,reg){const h=hidden();(h[k]=h[k]||{})[reg]=Date.now();setHidden(h);
+    const P=F[k].prefix,last=rd(P+'_lastac');if(last&&String(last.reg||'').toUpperCase()===reg){try{localStorage.setItem(P+'_lastac_removed',JSON.stringify(last));localStorage.removeItem(P+'_lastac')}catch(e){}}}
+  function undoRemove(k,reg){const h=hidden();if(h[k]){delete h[k][reg];setHidden(h)}
+    const P=F[k].prefix,prev=rd(P+'_lastac_removed');if(prev&&String(prev.reg||'').toUpperCase()===reg&&!rd(P+'_lastac')){try{localStorage.setItem(P+'_lastac',JSON.stringify(prev))}catch(e){}}}
   const go=(k,reg,sn)=>{try{localStorage.setItem('fleet_ac',k);if(reg)localStorage.setItem(F[k].prefix+'_lastac',JSON.stringify({reg,sn:sn||''}))}catch(e){}
     const u=new URL(location.href);u.searchParams.delete('ac');location.replace(u.toString())};
   // aircraft picker in the top bar: tap the model name
@@ -73,7 +83,12 @@ function fleetUi(){
     .fleetlist .s{font-size:12.5px;color:var(--text-dim);margin-top:2px}
     .fleetlist .cur{margin-left:auto;color:var(--cyan)}
     .fleetlist .tails{display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 8px 56px}
-    .fleetlist .tails button{font-family:var(--sans);font-weight:500;font-size:13px;border:1px solid var(--border2);background:none;color:var(--text);border-radius:8px;padding:4px 10px;cursor:pointer}
+    .fleetlist .tails .tc{display:inline-flex;align-items:stretch;border:1px solid var(--border2);border-radius:8px;overflow:hidden}
+    .fleetlist .tails .tc button{font-family:var(--sans);font-weight:500;font-size:13px;border:none;background:none;color:var(--text);padding:4px 10px;cursor:pointer}
+    .fleetlist .tails .tc .rm{padding:0 6px;border-left:1px solid var(--border2);color:var(--text-dim);display:flex;align-items:center}
+    .fleetlist .tails .tc .rm .ms{font-size:16px}
+    .fleetundo{display:flex;align-items:center;gap:10px;background:var(--tonal);color:var(--on-tonal);border-radius:12px;padding:8px 10px 8px 14px;margin-top:10px;font-size:13.5px}
+    .fleetundo button{margin-left:auto}
     .fleetbar{display:flex;align-items:center;gap:10px;background:var(--tonal);color:var(--on-tonal);border-radius:12px;padding:8px 10px 8px 14px;margin:8px 0 0;font-size:13.5px}
     .fleetbar button{margin-left:auto;flex-shrink:0}`;
   document.head.appendChild(css);
@@ -85,14 +100,16 @@ function fleetUi(){
       const lg=nameWrap.querySelector('.long'),sh=nameWrap.querySelector('.short');
       if(lg)lg.textContent=F[AC].name+(F[AC].melOnly?' MEL':' Troubleshooter');if(sh)sh.textContent=F[AC].name;
       [lg,sh].forEach(x=>x&&pick.appendChild(x));pick.insertAdjacentHTML('beforeend','<span class="ms">arrow_drop_down</span>');
-      nameWrap.insertBefore(pick,nameWrap.firstChild);pick.onclick=openFleet}}
-  function openFleet(){
+      nameWrap.insertBefore(pick,nameWrap.firstChild);pick.onclick=()=>openFleet()}}
+  function openFleet(undo){
     const rows=Object.keys(F).map(k=>{const t=[...tailsFor(k)];
       return `<div class="row" data-ac="${k}"><span class="ico"><span class="ms">flight</span></span><div><div class="t">${esc(F[k].name)}</div><div class="s">${esc(F[k].full)}${t.length?' · '+t.length+' tail'+(t.length>1?'s':''):''}</div></div>${k===AC?'<span class="ms cur">check_circle</span>':''}</div>
-        ${t.length?`<div class="tails">${t.slice(0,12).map(([r,sn])=>`<button data-ac="${k}" data-reg="${esc(r)}" data-sn="${esc(sn)}">${esc(r)}</button>`).join('')}</div>`:''}`}).join('');
-    showModal('Aircraft',`<div class="kv">Pick the aircraft type, or tap a tail number to open it with that registration filled in. Each type keeps its own manuals, settings and cases.</div><div class="fleetlist">${rows}</div>`);
+        ${t.length?`<div class="tails">${t.slice(0,12).map(([r,sn])=>`<span class="tc"><button data-ac="${k}" data-reg="${esc(r)}" data-sn="${esc(sn)}">${esc(r)}</button><button class="rm" data-ac="${k}" data-rm="${esc(r)}" title="Remove ${esc(r)} from this list" aria-label="Remove ${esc(r)} from this list"><span class="ms">close</span></button></span>`).join('')}</div>`:''}`}).join('');
+    showModal('Aircraft',`<div class="kv">Pick the aircraft type, or tap a tail number to open it with that registration filled in. Tap × to remove a tail from this list (its saved cases stay). Each type keeps its own manuals, settings and cases.</div><div class="fleetlist">${rows}</div>${undo?`<div class="fleetundo"><span>${esc(undo.reg)} removed from the ${esc(F[undo.k].name)} list.</span><button class="btn2 small" id="fleetUndo">Undo</button></div>`:''}`);
+    const ub=document.getElementById('fleetUndo');if(ub)ub.onclick=()=>{undoRemove(undo.k,undo.reg);openFleet()};
+    document.querySelectorAll('.fleetlist .tails .rm').forEach(b=>b.onclick=e=>{e.stopPropagation();removeTail(b.dataset.ac,b.dataset.rm);openFleet({k:b.dataset.ac,reg:b.dataset.rm})});
     document.querySelectorAll('.fleetlist .row').forEach(el=>el.onclick=()=>{if(el.dataset.ac===AC){hideModal();return}go(el.dataset.ac)});
-    document.querySelectorAll('.fleetlist .tails button').forEach(b=>b.onclick=()=>{
+    document.querySelectorAll('.fleetlist .tails button[data-reg]').forEach(b=>b.onclick=()=>{
       if(b.dataset.ac===AC){hideModal();const r=document.getElementById('fReg'),s=document.getElementById('fSn');if(r){r.value=b.dataset.reg;r.dispatchEvent(new Event('input',{bubbles:true}))}if(s&&b.dataset.sn){s.value=b.dataset.sn}return}
       go(b.dataset.ac,b.dataset.reg,b.dataset.sn)});
   }
