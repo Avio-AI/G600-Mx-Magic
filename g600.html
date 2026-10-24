@@ -2918,11 +2918,12 @@ function summaryInput(){
       if(tools.length)L.push(`(lookups: ${tools.join('; ')})`);if(t)L.push(`ASSISTANT: ${t}`)}}
   let s=L.join('\n');if(s.length>150000)s=s.slice(0,20000)+'\n…(middle of the case omitted)…\n'+s.slice(-130000);return s;
 }
-async function claudeOnce(system,text,max=2000){
+async function claudeOnce(system,text,max=2000,model=SUM_MODEL){
   const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'content-type':'application/json','x-api-key':cfg.anthropicKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-    body:JSON.stringify({model:SUM_MODEL,max_tokens:max,system,messages:[{role:'user',content:text}]})});
-  if(!res.ok){let t=await res.text();try{t=JSON.parse(t).error.message}catch(e){}throw new Error(`Anthropic API ${res.status}: ${t}`)}
-  const j=await res.json();CASE.usage.in+=(j.usage&&j.usage.input_tokens)||0;CASE.usage.out+=(j.usage&&j.usage.output_tokens)||0;
+    body:JSON.stringify({model,max_tokens:max,system,messages:[{role:'user',content:text}]})});
+  if(!res.ok){let t=await res.text();try{t=JSON.parse(t).error.message}catch(e){}const err=new Error(`Anthropic API ${res.status}: ${t}`);err.status=res.status;throw err}
+  const j=await res.json();
+  if(j.stop_reason==='max_tokens'){const err=new Error('the summary was cut off (too long)');err.retry=true;throw err}CASE.usage.in+=(j.usage&&j.usage.input_tokens)||0;CASE.usage.out+=(j.usage&&j.usage.output_tokens)||0;
   return (j.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n').trim();
 }
 let SUM_BUSY=null;
@@ -2931,7 +2932,12 @@ async function makeSummary(force){
   if(!force&&!summaryStale())return CASE.summary;if(SUM_BUSY)return SUM_BUSY;
   const c=CASE;
   SUM_BUSY=(async()=>{try{
-    const md=await claudeOnce(SUM_SYS,summaryInput());
+    // the summary model first, then the case's own model; a cut-off summary is retried once with more room and never saved
+    let md=null,last=null;const input=summaryInput();
+    for(const m of [...new Set([SUM_MODEL,cfg.model])]){
+      for(const tok of [8000,16000]){try{md=await claudeOnce(SUM_SYS,input,tok,m);break}catch(e){last=e;if(!e.retry)break}}
+      if(md||(last&&(last.status===401||last.status===429)))break}
+    if(!md)throw last||new Error('The summary could not be written.');
     const tech=(typeof syCfg==='function'&&syCfg().tech)||'';
     c.summary={md,at:Date.now(),n:c.msgs.length,closed:!!c.closedAt,by:tech};
     if(CASE===c){saveCase();caseStatusBar()}
@@ -2961,18 +2967,52 @@ function pdfOutHtml(box,blob,name){
 }
 function summaryAge(){if(!CASE.summary)return 'No summary yet.';const n=CASE.msgs.length-CASE.summary.n;
   return `Updated ${dmyt(CASE.summary.at)}${CASE.summary.by?' by '+esc(CASE.summary.by):''}${n>0&&!CASE.closedAt?` · ${Math.ceil(n/2)} new update${n>2?'s':''} since, refreshed when you open it`:''}`}
+/* ── email the summary: a draft in the user's email app ── */
+const MAIL_KEY='mxm_mail'; // {to, cc}, shared by every aircraft on this device
+function summaryText(c){return summaryMarkdownFile(c).replace(/\*\*/g,'').replace(/^#+\s*/gm,'').replace(/_([^_]+)_/g,'$1')}
+function summarySubject(c){const f=c.form||{},closed=!!c.closedAt;
+  const m=(c.summary.md||'').match(/###\s*Problem\s*\n+([\s\S]*?)(\n###|$)/i);let head=(m?m[1]:c.title||'').replace(/\s+/g,' ').trim();const d=head.search(/[.!?](\s|$)/);if(d>20)head=head.slice(0,d);
+  return `${[f.reg,APPNAME].filter(Boolean).join(' ')} ${closed?'CLOSED':'case summary'} (${closed?'Resolved':caseStatus(c).text.replace(/^Open · /,'')}): ${head||c.title||''}`.replace(/\s+/g,' ').slice(0,180)}
+function summaryMailBody(c){let t=summaryText(c);if(t.length>6000)t=t.slice(0,5900)+'\n…(continued in the summary PDF)';return t+'\n\n— Sent from Mx Magic'}
+function emailSummary(box){
+  const c=CASE;let m={to:'',cc:''};try{m={...m,...JSON.parse(localStorage.getItem(MAIL_KEY)||'{}')}}catch(e){}
+  const canFiles=!!(navigator.canShare&&navigator.canShare({files:[new File(['x'],'x.pdf',{type:'application/pdf'})]}));
+  box.innerHTML=`<div class="card" style="margin:0;padding:12px">
+    <div class="field"><label>To</label><input id="mlTo" type="email" multiple value="${esc(m.to)}" placeholder="techops@your-company.com, …" autocomplete="email" autocapitalize="off"></div>
+    <div class="field"><label>Cc</label><input id="mlCc" type="email" multiple value="${esc(m.cc)}" placeholder="Optional" autocapitalize="off"></div>
+    <div class="hint" style="margin:-4px 0 10px">Recipients are remembered on this device. Subject: ${esc(summarySubject(c))}</div>
+    <button class="btn" id="mlOpen" style="width:100%">Open Draft In Email App</button>
+    ${canFiles?`<button class="btn2" id="mlPdf" style="width:100%;margin-top:8px">Email With PDF Attached</button>
+    <div class="hint" style="margin-top:6px">Opens the share sheet: pick Mail, Outlook or Gmail. The PDF and text are filled in; add the recipients there.</div>`:
+    `<div class="hint" style="margin-top:6px">The draft has the summary as text. To attach the PDF, tap Summary PDF, save it and attach it to the draft.</div>`}
+  </div>`;
+  requestAnimationFrame(()=>{box.scrollIntoView({behavior:'smooth',block:'start'});if(!m.to)$('#mlTo').focus({preventScroll:true})});
+  const keep=()=>{const v={to:$('#mlTo').value.trim(),cc:$('#mlCc').value.trim()};try{localStorage.setItem(MAIL_KEY,JSON.stringify(v))}catch(e){}return v};
+  $('#mlOpen').onclick=()=>{const v=keep();const q=[v.cc&&'cc='+encodeURIComponent(v.cc),'subject='+encodeURIComponent(summarySubject(c)),'body='+encodeURIComponent(summaryMailBody(c).replace(/\n/g,'\r\n'))].filter(Boolean).join('&');
+    const a=document.createElement('a');a.href=`mailto:${v.to.split(/[,;\s]+/).filter(Boolean).map(encodeURIComponent).join(',')}?${q}`;a.click()};
+  // two taps: phones only open the share sheet straight from a tap, so the PDF is prepared first
+  let file=null;
+  if($('#mlPdf'))$('#mlPdf').onclick=async()=>{keep();const b=$('#mlPdf');
+    if(file){try{await navigator.share({files:[file],title:summarySubject(c),text:summaryMailBody(c)})}catch(e){if(e.name!=='AbortError')b.insertAdjacentHTML('afterend',`<div class="errbox" style="margin-top:8px">${esc(e.message||e)}</div>`)}return}
+    b.disabled=true;b.textContent='Preparing PDF…';
+    try{const {blob,name}=await summaryPdf();file=new File([blob],name,{type:'application/pdf'});b.disabled=false;b.innerHTML='<span class="ms" style="font-size:19px;vertical-align:-4px">send</span> Send Email With PDF';b.classList.replace('btn2','btn')}
+    catch(e){b.disabled=false;b.textContent='Email With PDF Attached';b.insertAdjacentHTML('afterend',`<div class="errbox" style="margin-top:8px">${esc(e.message||e)}</div>`)}};
+}
 function openSummary(){
   if(!CASE)return;
   const body=()=>`<div class="sumstat ${caseStatus().key}">${esc(caseStatus().text)}</div>
     <div class="hint" style="margin:6px 0 10px">${summaryAge()}</div>
     <div class="aitext sumbody">${CASE.summary?md(CASE.summary.md):'<div class="kv">Creating the summary…</div>'}</div>
-    <div class="grid2" style="margin-top:14px"><button class="btn" id="smPdf">Summary PDF</button><button class="btn2" id="smCopy">Copy Text</button></div>
+    <div class="grid2" style="margin-top:14px"><button class="btn" id="smMail"><span class="ms" style="font-size:19px;vertical-align:-4px">mail</span> Email</button><button class="btn2" id="smPdf">Summary PDF</button></div>
+    <button class="btn2 small" id="smCopy" style="width:100%;margin-top:8px">Copy Text</button>
     <div id="smOut" style="margin-top:12px"></div>
     <div class="grid2" style="margin-top:8px"><button class="btn2" id="smRefresh">Refresh Summary</button><button class="btn2" id="smClose">${CASE.closedAt?'Reopen Case':'Close Case'}</button></div>
     <div class="hint" style="margin-top:10px">A one-page brief for Tech Ops, field service reps and crew. It updates after each reply until the case is closed${typeof syOn==='function'&&syOn()?', and every technician with case sync sees the same summary':''}.</div>`;
   const draw=()=>{showModal('CASE SUMMARY',body());wire()};
   const wire=()=>{
     $('#smPdf').onclick=async()=>{const b=$('#smPdf');b.disabled=true;b.textContent='Creating PDF…';try{const {blob,name}=await summaryPdf();b.textContent='✔ PDF ready';pdfOutHtml($('#smOut'),blob,name)}catch(e){b.disabled=false;b.textContent='Summary PDF';$('#smOut').innerHTML=`<div class="errbox">${esc(e.message)}</div>`}};
+    $('#smMail').onclick=async()=>{const b=$('#smMail'),t=b.innerHTML;b.disabled=true;b.textContent='Updating summary…';
+      try{await makeSummary(false);emailSummary($('#smOut'))}catch(e){$('#smOut').innerHTML=`<div class="errbox">${esc(e.message)}</div>`}finally{b.disabled=false;b.innerHTML=t}};
     $('#smCopy').onclick=async()=>{if(!CASE.summary)return;const t=summaryMarkdownFile(CASE).replace(/\*\*/g,'').replace(/^#+\s*/gm,'');try{await navigator.clipboard.writeText(t);$('#smCopy').textContent='✔ Copied'}catch(e){$('#smOut').innerHTML=`<textarea readonly style="width:100%;height:200px">${esc(t)}</textarea>`}};
     $('#smRefresh').onclick=async()=>{const b=$('#smRefresh');b.disabled=true;b.textContent='Refreshing…';try{await makeSummary(true);draw()}catch(e){b.disabled=false;b.textContent='Refresh Summary';$('#smOut').innerHTML=`<div class="errbox">${esc(e.message)}</div>`}};
     $('#smClose').onclick=async()=>{
