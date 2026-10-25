@@ -1171,7 +1171,7 @@ Known gaps: ${(m.gaps||[]).join(' | ')}
 4. Build a differential: list candidate causes (sensor, wiring/connector, data source such as an RDC, controller/LRU, power: SSPC/CB, mechanical) and for each say what evidence supports or contradicts it. Rank them.
 5. Recommend the single most discriminating next check — the test that best separates the top hypotheses, with the least effort and risk — with exact steps. For wiring checks, use find_component, get_connector_pins and trace_wire to give real designators, pins and wire numbers, and say where the far end is. Give expected values and pass/fail interpretation only where the manuals state them; otherwise say what a normal result looks like and label it general knowledge.
 6. When the technician reports results, update the differential explicitly ("this eliminates X because…") and continue until you can state a conclusion: what failed, why it produced these symptoms, the corrective action (the AMM Removal / Installation module) and the required operational test / functional check after repair (the matching AMM module).
-7. Dispatch: when the technician asks about deferring, or the fault cannot be fixed before the next flight, call lookup_mel. State the relief (category, installed / required, every condition), who authorizes it under the operating rule the tool returns (MEL + LOA/OpSpec, PIC acceptance), the repair-by interval, and split the procedures by role: (M) for maintenance, (O) for the flight crew, placard for maintenance. If there is no relief, say the item must be repaired before flight. When deferral is verified as necessary (the fault won't be fixed before the next flight and the chosen relief's conditions fit this aircraft), call record_mel_deferral with the mel_id and option from lookup_mel and a log-style discrepancy entry; the app then fills the MEL section of the operator's discrepancy log (Solairus AMDL) for signature. Do not record a deferral the technician hasn't chosen. When the technician later reports the fix is complete (part replaced, adjustment made, operational test / functional check passed), call record_corrective_action with a log-style corrective action that cites the AMM removal/installation and operational test tasks you found, and the P/N and S/N off/on exactly as the technician gave them (ask for any that are missing rather than guessing). Whenever the technician reports a component removed and replaced (a troubleshooting swap or the fix, even if the case stays open), call record_component_change with the part name, category (airframe / engine / APU), engine position, P/N and S/N off and on, reason removed, the AMM removal / installation task you found and a log-style description; the app then prepares the component log entry and the Gulfstream Form 3671 repair tag. Ask the technician to photograph the replacement part's 8130-3 / Form One in that card so its certificate data and times fill in.
+7. Dispatch: when the technician asks about deferring, or the fault cannot be fixed before the next flight, call lookup_mel. State the relief (category, installed / required, every condition), who authorizes it under the operating rule the tool returns (MEL + LOA/OpSpec, PIC acceptance), the repair-by interval, and split the procedures by role: (M) for maintenance, (O) for the flight crew, placard for maintenance. If there is no relief, say the item must be repaired before flight. When deferral is verified as necessary (the fault won't be fixed before the next flight and the chosen relief's conditions fit this aircraft), call record_mel_deferral with the mel_id and option from lookup_mel and a log-style discrepancy entry; the app then fills the MEL section of the operator's discrepancy log (Solairus AMDL) for signature. Do not record a deferral the technician hasn't chosen. When the technician later reports the fix is complete (part replaced, adjustment made, operational test / functional check passed), call record_corrective_action with a log-style corrective action that cites the AMM removal/installation and operational test tasks you found, and the P/N and S/N off/on exactly as the technician gave them (ask for any that are missing rather than guessing). Whenever the technician reports a component removed and replaced (a troubleshooting swap or the fix, even if the case stays open), call record_component_change with the part name, category (airframe / engine / APU), engine position, P/N and S/N off and on, reason removed, the AMM removal / installation task you found copied exactly as the manual prints it (never add or remove hyphens or dots), and a log-style description; the app then prepares the component log entry and the Gulfstream Form 3671 repair tag. Ask the technician to photograph the replacement part's 8130-3 / Form One in that card so its certificate data and times fill in.
 8. Use the AMM general maintenance modules for power-up, SSPC/circuit breaker control and safe-ground setup; IPC for part numbers when replacement is likely; SWPM for wire/connector repair methods.
 Do not stop at one search: search, read the relevant pages, cross-check between manuals. Keep tool calls purposeful (typically 3–10 per turn).
 
@@ -2873,8 +2873,8 @@ const LE_RTS={
     apu:"I certify that this APU has been inspected/repaired as described above, in accordance with the manufacturer’s recommended inspection program, Sunset Aviation LLC’s GMM, per FAR 135.411(a)(2) and per Sunset Aviation LLC’s Policies and Procedures, and is approved for return to service with regard to the maintenance accomplished.",
     engine:"I certify that this engine has been inspected/repaired as described above, in accordance with the manufacturer’s recommended inspection program, Sunset Aviation LLC’s GMM, per FAR 135.411(a)(2) and per Sunset Aviation LLC’s Policies and Procedures, and is approved for return to service with regard to the maintenance accomplished."},
   sol91:{label:'Solairus Part 91',
-    airframe:"I certify that this aircraft has been inspected/repaired as described above, in accordance with the manufacturer’s recommended inspection program, Sunset Aviation LLC’s GMM, per FAR 135.411(a)(2) and per Sunset Aviation LLC’s Policies and Procedures, and is approved for return to service with regard to the maintenance accomplished.",
-    apu:"I certify that this APU has been inspected/repaired as described above, in accordance with the manufacturer’s recommended inspection program, Sunset Aviation LLC’s GMM, per FAR 135.411(a)(2) and per Sunset Aviation LLC’s Policies and Procedures, and is approved for return to service with regard to the maintenance accomplished.",
+    airframe:"I certify that this aircraft has been inspected/repaired as described above, in accordance with the manufacturer’s recommended inspection program, Sunset Aviation LLC’s GMM, per FAR 91.409(F)(3) and per Sunset Aviation LLC’s Policies and Procedures, and is approved for return to service with regard to the maintenance accomplished.",
+    apu:"I certify that this APU has been inspected/repaired as described above, in accordance with the manufacturer’s recommended inspection program, Sunset Aviation LLC’s GMM, per FAR 91.409(F)(3) and per Sunset Aviation LLC’s Policies and Procedures, and is approved for return to service with regard to the maintenance accomplished.",
     engine:"I certify that this engine has been inspected/repaired as described above, in accordance with the manufacturer’s recommended inspection program, Sunset Aviation LLC’s GMM, per FAR 91.409(F)(3) and per Sunset Aviation LLC’s Policies and Procedures, and is approved for return to service with regard to the maintenance accomplished."}
 };
 const LE_CAT={airframe:'Airframe',engine:'Engine',apu:'APU'};
@@ -2914,8 +2914,8 @@ const LE_TOOL={name:'record_component_change',description:'Record a component tr
     engine_position:{type:'string',description:'"1" (left) or "2" (right) for engine components'},
     pn_off:{type:'string'},sn_off:{type:'string'},pn_on:{type:'string'},sn_on:{type:'string'},
     reason_removed:{type:'string',description:'Short reason, e.g. "INOPERATIVE - PACK OVERTEMP" or "A-TIME CHANGE"'},
-    amm_task:{type:'string',description:'AMM removal / installation task number you found, e.g. 21-51-41-400-801'},
-    description:{type:'string',description:'Log-style work description in capitals, e.g. "L PACK TEMPERATURE CONTROL VALVE - REMOVED AND REPLACED IAW AMM 21-51-41-400-801. OPS CHECK IAW AMM 21-51-00-710-801 GOOD."'}},required:['part_name','category']}};
+    amm_task:{type:'string',description:'Task number / position for the log: the AMM removal / installation task number copied exactly as the manual prints it (do not add or remove hyphens or dots; e.g. a G600 task is written like 213100.001). If the procedure has no task number, give the AMM section reference as printed and/or the position (LH, RH, NO. 1).'},
+    description:{type:'string',description:'Log-style work description in capitals, citing AMM references exactly as the manual prints them, e.g. "L PACK TEMPERATURE CONTROL VALVE - REMOVED AND REPLACED IAW AMM <task as printed>. OPS CHECK IAW AMM <task as printed> GOOD."'}},required:['part_name','category']}};
 try{TOOLS.splice(Math.max(0,TOOLS.length-1),0,LE_TOOL)}catch(e){}
 try{TOOL_LABEL.record_component_change=i=>`Component change: ${i.part_name||''}`}catch(e){}
 {const _rt=runTool;runTool=async function(name,input){
@@ -2971,8 +2971,8 @@ function openPart(id,focus){
   showModal('COMPONENT LOG ENTRY',`<div id="leWrap">
     <h3 class="amh">Component</h3>
     <div class="grid2">${sel('leCat','Category',Object.entries(LE_CAT),p.cat)}${sel('lePos','Engine position',[['','—'],['1','Engine 1 (Left)'],['2','Engine 2 (Right)']],p.pos)}</div>
-    <div class="grid2">${fld('leName','Part name',p.name,'Pack Temperature Control Valve')}${fld('leTask','Task No. / Position',p.task,'21-51-41-400-801 / LH')}</div>
-    <div class="field"><label>Description</label><textarea id="leDesc" rows="3" placeholder="L PACK TEMPERATURE CONTROL VALVE - REMOVED AND REPLACED IAW AMM … OPS CHECK GOOD.">${esc(p.desc||'')}</textarea></div>
+    <div class="grid2">${fld('leName','Part name',p.name,'Pack Temperature Control Valve')}${fld('leTask','Task No. / Position',p.task,'As printed in the AMM, or LH / RH')}</div>
+    <div class="field"><label>Work performed</label><textarea id="leDesc" rows="3" placeholder="L PACK TEMPERATURE CONTROL VALVE - REMOVED AND REPLACED IAW AMM … OPS CHECK GOOD.">${esc(p.desc||'')}</textarea></div>
     <div class="field"><label>Reason removed</label><input id="leReason" value="${esc(p.reason||'')}" placeholder="INOPERATIVE / A-TIME CHANGE" autocomplete="off"></div>
     <h3 class="amh">Removed</h3>
     <div class="grid2">${fld('leOffPn','P/N off',p.off.pn)}${fld('leOffSn','S/N off',p.off.sn)}</div>
@@ -2994,6 +2994,8 @@ function openPart(id,focus){
     <div class="grid2">${fld('leReg','Registration',f.reg,'N1KE','autocapitalize="characters"')}${fld('leSn','Serial number',f.sn,typeof SN_HINT!=='undefined'?SN_HINT:'')}</div>
     <details class="more" id="leTimesBox" ${TIMES_KEYS.some(k=>f[k])?'':'open'}><summary>▸ Aircraft, Engine &amp; APU Times</summary>${timesHtml('le',f)}${fld('leApuSt','APU starts',f.apuSt,'','inputmode="numeric"')}</details>
     <div class="grid2">${sel('leRtsCat','Return to service statement',Object.entries(LE_CAT),p.rts.cat||p.cat)}${sel('leRtsOp','Operation',Object.entries(LE_RTS).map(([k,v])=>[k,v.label]),p.rts.op||leRtsDefault())}</div>
+    <div class="field"><label>Log entry description</label><textarea id="leLog" rows="7">${esc(p.logEdited&&p.logText?p.logText:leItemLines(p).join('\n'))}</textarea>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:6px"><button type="button" class="btn2 small" id="leRebuild"><span class="ms">refresh</span>Rebuild From Fields</button><span class="hint" id="leLogHint" style="margin:0">${p.logEdited?'Edited by hand. Field changes no longer update it.':'Follows the fields above until you edit it.'}</span></div></div>
     <div class="kv" id="leRtsText" style="margin:-2px 0 12px;font-size:12.5px"></div>
     <div class="grid2">${fld('leTech','Work performed by',me.name)}${fld('leCert','Certificate #',me.cert)}</div>
     <button class="btn" id="leGo" style="width:100%">Create Log Entry PDF</button><div id="leOut" style="margin-top:10px"></div>
@@ -3032,7 +3034,7 @@ function openPart(id,focus){
     p.cat=g('leCat');p.pos=g('lePos');p.name=g('leName');p.task=g('leTask');p.desc=$('#leDesc').value.trim();p.reason=g('leReason');
     p.off={pn:g('leOffPn'),sn:g('leOffSn')};p.on={pn:g('leOnPn'),sn:g('leOnSn')};
     Object.assign(p.cert,{form:g('leForm'),trk:g('leTrk'),status:g('leStatus'),date:g('leCertDate'),org:g('leOrg'),remarks:g('leRemarks')});
-    p.tdes=g('leTdes');p.inst=g('leInst');p.mos=g('lePMos');p.hrs=g('lePHrs');p.cyc=g('lePCyc');p.tcDate=g('leTcDate');p.wo=g('leWo');
+    p.logText=$('#leLog').value.replace(/\s+$/,'');p.tdes=g('leTdes');p.inst=g('leInst');p.mos=g('lePMos');p.hrs=g('lePHrs');p.cyc=g('lePCyc');p.tcDate=g('leTcDate');p.wo=g('leWo');
     p.rts={cat:g('leRtsCat'),op:g('leRtsOp')};
     f.reg=g('leReg').toUpperCase();f.sn=g('leSn');f.apuSt=g('leApuSt');Object.assign(f,ET.read());
     T.ret=Object.fromEntries(LE_RETURN.map(([k])=>[k,c('leR_'+k)]));T.cond=Object.fromEntries(LE_COND.map(([k])=>[k,c('leC_'+k)]));
@@ -3046,7 +3048,12 @@ function openPart(id,focus){
     store.set(LE_RTS_KEY,g('leRtsOp'));const d=g('leDesig');if(d)store.set(LE_DESIG_KEY,d===(LE_DESIG[leTypeName()]||leTypeName())?'':d);
     if(f.reg||f.sn)store.set(LAST_AC_KEY,{reg:f.reg,sn:f.sn});
   };
-  let tmr=null;const draft=()=>{clearTimeout(tmr);tmr=setTimeout(()=>{if(!lePart(id)||!$('#leWrap'))return;read();saveCase();refreshPartCards()},400)};
+  // the log entry description follows the fields until the technician edits it; Rebuild From Fields starts it over
+  const logSync=force=>{if(p.logEdited)return;const t=leItemLines(p).join('\n');const e=$('#leLog');if(e&&(force||document.activeElement!==e)&&e.value!==t){e.value=t;p.logText=t}};
+  $('#leLog').addEventListener('focus',()=>{if(!p.logEdited){read();logSync(true)}}); // up to date before the technician starts typing
+  $('#leLog').addEventListener('input',()=>{p.logEdited=true;$('#leLogHint').textContent='Edited by hand. Field changes no longer update it.'});
+  $('#leRebuild').onclick=()=>{p.logEdited=false;$('#leLog').value=leItemLines(p).join('\n');$('#leLogHint').textContent='Follows the fields above until you edit it.';draft()};
+  let tmr=null;const draft=()=>{clearTimeout(tmr);tmr=setTimeout(()=>{if(!lePart(id)||!$('#leWrap'))return;read();logSync();p.logText=$('#leLog').value.replace(/\s+$/,'');saveCase();refreshPartCards()},400)};
   $('#leWrap').addEventListener('input',draft);$('#leWrap').addEventListener('change',draft);
   $('#leCat').addEventListener('change',()=>{p.catSet=true;$('#leRtsCat').value=g('leCat');if(g('leCat')==='engine'&&!g('leEngModel'))$('#leEngModel').value=LE_ENG_MODEL[leTypeName()]||'';rtsText();timesHint()});
   ['leRtsCat','leRtsOp'].forEach(i=>$('#'+i).addEventListener('change',rtsText));
@@ -3056,7 +3063,7 @@ function openPart(id,focus){
   const pick=cam=>{const i=document.createElement('input');i.type='file';i.accept='image/*';if(cam)i.setAttribute('capture','environment');i.onchange=()=>{if(i.files&&i.files[0])leScanCert(p,i.files[0])};i.click()};
   $('#leCam').onclick=()=>pick(true);$('#leLib').onclick=()=>pick(false);if($('#leView'))$('#leView').onclick=()=>phOpen(p.photo);
   $('#leDel').onclick=()=>{if(!confirmDel($('#leDel')))return;CASE.parts=leParts().filter(x=>x.id!==id);saveCase();$$('#chatLog .partcard').forEach(x=>{if(x.dataset.part===id)x.remove()});openParts()};
-  const outBtn=async(btnId,outId,label,fn)=>{read();remember();saveCase();refreshPartCards();const b=$('#'+btnId);b.disabled=true;b.textContent='Creating PDF…';$('#'+outId).innerHTML='';
+  const outBtn=async(btnId,outId,label,fn)=>{read();logSync();p.logText=$('#leLog').value.replace(/\s+$/,'');remember();saveCase();refreshPartCards();const b=$('#'+btnId);b.disabled=true;b.textContent='Creating PDF…';$('#'+outId).innerHTML='';
     try{const {blob,name,notes}=await fn();b.disabled=false;b.textContent=label;pdfOutHtml($('#'+outId),blob,name);if(notes&&notes.length)$('#'+outId).insertAdjacentHTML('afterbegin',`<div class="melrow melwarn" style="margin-bottom:8px">${notes.map(esc).join('<br>')}</div>`)}
     catch(e){b.disabled=false;b.textContent=label;$('#'+outId).innerHTML=`<div class="errbox">${esc(e.message||String(e))}</div>`}};
   $('#leGo').onclick=()=>outBtn('leGo','leOut','Create Log Entry PDF',()=>buildLogEntry(p,{desig:g('leDesig'),tech:g('leTech'),cert:g('leCert')}));
@@ -3104,7 +3111,7 @@ async function leFonts(doc){
 }
 function leItemLines(p){
   const u=leUnit(p.cat),L=[];
-  L.push(p.desc||`${(p.name||'COMPONENT').toUpperCase()} - REMOVED AND REPLACED${p.task&&/\d{2}-\d{2}/.test(p.task)?' IAW AMM '+p.task:''}.`);
+  L.push(p.desc||`${(p.name||'COMPONENT').toUpperCase()} - REMOVED AND REPLACED${p.task&&/\d/.test(p.task)?' IAW AMM '+p.task:''}.`);
   if(p.off.pn||p.off.sn)L.push(`Removed ${p.off.pn||''}  S/N# ${p.off.sn||''}${p.reason?'  Reason Removed '+p.reason.toUpperCase():''}`);
   if(p.on.pn||p.on.sn){const t=[p.mos!==''&&p.mos!=null?p.mos+' MOS':'',p.hrs!==''&&p.hrs!=null?p.hrs+' HRS':'',p.cyc!==''&&p.cyc!=null?p.cyc+' '+u:''].filter(Boolean).join(' ');
     L.push(`Installed ${p.on.pn||''} S/N# ${p.on.sn||''}${p.tdes?` Installed Part Times ${p.tdes}: ${t}${p.tdes==='TC'&&p.tcDate?' AS OF '+dmyStr(p.tcDate).toUpperCase():''}`:''}`)}
@@ -3135,9 +3142,9 @@ async function buildLogEntry(p,o){
   };
   header();
   let y=128;
-  const items=[{task:[p.task,p.cat==='engine'&&p.pos?'ENG '+p.pos:''].filter(Boolean).join(' / '),lines:leItemLines(p)}];
+  const items=[{task:[p.task,p.cat==='engine'&&p.pos?'ENG '+p.pos:''].filter(Boolean).join(' / '),lines:p.logEdited&&p.logText?p.logText.split('\n'):leItemLines(p)}];
   items.forEach((it,n)=>{
-    const rows=it.lines.flatMap((t,i)=>wrap(i?t:t.toUpperCase(),390,7.6));const tk=wrap(it.task,145,7.6);
+    const rows=it.lines.flatMap(t=>wrap(t,390,7.6));const tk=wrap(it.task,145,7.6);
     const need=Math.max(rows.length,tk.length)*12.2+4;if(y+need>H-150){page=doc.addPage([W,H]);header();y=128}
     T(String(n+1),22,y,7.6);tk.forEach((t,i)=>T(t,48,y+i*12.2,7.6));rows.forEach((t,i)=>T(t,198,y+i*12.2,7.6));
     y+=need;line(17,y-7,593,y-7,.4,gr);y+=6;
