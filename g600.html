@@ -158,6 +158,8 @@ details.think div{font-size:13px;color:var(--text-dim);white-space:pre-wrap;line
 .melsec.dim .melbody{color:var(--text-dim)}
 .melcites{margin:12px 0 10px;display:flex;flex-wrap:wrap;gap:6px}
 .btn.small{width:auto;padding:7px 12px;font-size:13px;font-weight:800;border-radius:8px}
+.lechks{display:flex;flex-wrap:wrap;gap:6px 14px}.lechk{display:flex!important;gap:6px;align-items:center;text-transform:none!important;letter-spacing:0!important;font-family:var(--sans)!important;font-size:13.5px!important;color:var(--text)!important;margin:0!important}.lechk input{width:auto!important}
+.lefilled{box-shadow:0 0 0 2px var(--cyan) inset}
 .amh{font-family:var(--mono);font-size:12.5px;letter-spacing:1.5px;color:var(--cyan);font-weight:400;margin:10px 0 8px;text-transform:uppercase}
 .errbox{background:var(--err-bg);border:1px solid var(--err-border);color:var(--err-text);border-radius:8px;padding:10px 12px;font-size:14px;white-space:pre-wrap}
 
@@ -1169,7 +1171,7 @@ Known gaps: ${(m.gaps||[]).join(' | ')}
 4. Build a differential: list candidate causes (sensor, wiring/connector, data source such as an RDC, controller/LRU, power: SSPC/CB, mechanical) and for each say what evidence supports or contradicts it. Rank them.
 5. Recommend the single most discriminating next check — the test that best separates the top hypotheses, with the least effort and risk — with exact steps. For wiring checks, use find_component, get_connector_pins and trace_wire to give real designators, pins and wire numbers, and say where the far end is. Give expected values and pass/fail interpretation only where the manuals state them; otherwise say what a normal result looks like and label it general knowledge.
 6. When the technician reports results, update the differential explicitly ("this eliminates X because…") and continue until you can state a conclusion: what failed, why it produced these symptoms, the corrective action (the AMM Removal / Installation module) and the required operational test / functional check after repair (the matching AMM module).
-7. Dispatch: when the technician asks about deferring, or the fault cannot be fixed before the next flight, call lookup_mel. State the relief (category, installed / required, every condition), who authorizes it under the operating rule the tool returns (MEL + LOA/OpSpec, PIC acceptance), the repair-by interval, and split the procedures by role: (M) for maintenance, (O) for the flight crew, placard for maintenance. If there is no relief, say the item must be repaired before flight. When deferral is verified as necessary (the fault won't be fixed before the next flight and the chosen relief's conditions fit this aircraft), call record_mel_deferral with the mel_id and option from lookup_mel and a log-style discrepancy entry; the app then fills the MEL section of the operator's discrepancy log (Solairus AMDL) for signature. Do not record a deferral the technician hasn't chosen. When the technician later reports the fix is complete (part replaced, adjustment made, operational test / functional check passed), call record_corrective_action with a log-style corrective action that cites the AMM removal/installation and operational test tasks you found, and the P/N and S/N off/on exactly as the technician gave them (ask for any that are missing rather than guessing).
+7. Dispatch: when the technician asks about deferring, or the fault cannot be fixed before the next flight, call lookup_mel. State the relief (category, installed / required, every condition), who authorizes it under the operating rule the tool returns (MEL + LOA/OpSpec, PIC acceptance), the repair-by interval, and split the procedures by role: (M) for maintenance, (O) for the flight crew, placard for maintenance. If there is no relief, say the item must be repaired before flight. When deferral is verified as necessary (the fault won't be fixed before the next flight and the chosen relief's conditions fit this aircraft), call record_mel_deferral with the mel_id and option from lookup_mel and a log-style discrepancy entry; the app then fills the MEL section of the operator's discrepancy log (Solairus AMDL) for signature. Do not record a deferral the technician hasn't chosen. When the technician later reports the fix is complete (part replaced, adjustment made, operational test / functional check passed), call record_corrective_action with a log-style corrective action that cites the AMM removal/installation and operational test tasks you found, and the P/N and S/N off/on exactly as the technician gave them (ask for any that are missing rather than guessing). Whenever the technician reports a component removed and replaced (a troubleshooting swap or the fix, even if the case stays open), call record_component_change with the part name, category (airframe / engine / APU), engine position, P/N and S/N off and on, reason removed, the AMM removal / installation task you found and a log-style description; the app then prepares the component log entry and the Gulfstream Form 3671 repair tag. Ask the technician to photograph the replacement part's 8130-3 / Form One in that card so its certificate data and times fill in.
 8. Use the AMM general maintenance modules for power-up, SSPC/circuit breaker control and safe-ground setup; IPC for part numbers when replacement is likely; SWPM for wire/connector repair methods.
 Do not stop at one search: search, read the relevant pages, cross-check between manuals. Keep tool calls purposeful (typically 3–10 per turn).
 
@@ -1346,7 +1348,8 @@ function newAiBubble(){
       toolready(b){const t=els['tool:'+b.id];if(t)t.querySelector('.tx').textContent=toolLabel(b)}
     }},
     toolDone(id,r){const t=els['tool:'+id];if(!t)return;t.classList.remove('run');if(r.error)t.classList.add('err');t.querySelector('.ic').textContent=r.error?'✖':'◆';t.querySelector('.rs').textContent=r.summary||'';t._result=r.data;
-      if(!r.error&&r.data&&r.data.recorded){const c=deferralCard();if(c){$$('#chatLog .deferralcard').forEach(x=>x.remove());t.after(c)}}},
+      if(!r.error&&r.data&&r.data.recorded){const c=deferralCard();if(c){$$('#chatLog .deferralcard').forEach(x=>x.remove());t.after(c)}}
+      if(!r.error&&r.data&&r.data.part_id&&typeof partCard==='function'){$$('#chatLog .partcard').forEach(x=>{if(x.dataset.part===r.data.part_id)x.remove()});const pc=partCard(r.data.part_id);if(pc)t.after(pc)}},
     resetPending(){},
     finish(u){typing.remove();flush();const d=document.createElement('div');d.className='usage';d.textContent=`case tokens · in ${fmtK(u.in)} · out ${fmtK(u.out)} · ${cfg.model}`;wrap.appendChild(d);autoScroll()},
     error(msg){typing.remove();flush();const d=document.createElement('div');d.className='errbox';d.textContent=msg;wrap.appendChild(d);autoScroll()}
@@ -1378,7 +1381,8 @@ function renderCase(){
         if(b.type==='text'&&b.text){const d=document.createElement('div');d.className='aitext';d.innerHTML=md(b.text);aiWrap.appendChild(d)}
         else if(b.type==='thinking'&&b.thinking){const d=document.createElement('details');d.className='think';d.innerHTML='<summary>◈ REASONING</summary><div></div>';d.querySelector('div').textContent=b.thinking;aiWrap.appendChild(d)}
         else if(b.type==='tool_use'){const tr=toolResults.get(b.id)||{summary:'',data:{}};aiWrap.appendChild(toolEl(b,tr));
-          if((b.name==='record_mel_deferral'||b.name==='record_corrective_action')&&!tr.error&&tr.data&&tr.data.recorded){const ph=document.createElement('div');ph.className='deferralslot';aiWrap.appendChild(ph)}}
+          if((b.name==='record_mel_deferral'||b.name==='record_corrective_action')&&!tr.error&&tr.data&&tr.data.recorded){const ph=document.createElement('div');ph.className='deferralslot';aiWrap.appendChild(ph)}
+          if(!tr.error&&tr.data&&tr.data.part_id&&typeof partCard==='function'&&!$$('#chatLog .partcard').some(x=>x.dataset.part===tr.data.part_id)){const pc=partCard(tr.data.part_id);if(pc)aiWrap.appendChild(pc)}}
       }
     }
   }
@@ -2226,6 +2230,7 @@ $('#btnExport').onclick=()=>{
     <div class="field" style="margin-top:6px"><label>Full Report</label><div class="hint" style="margin:0 0 8px">Every step, lookup and line of reasoning.</div>
     <button class="btn2" id="exPdf" style="width:100%">Full Report PDF</button></div>
     <div id="exOut" style="margin-top:12px"></div>
+    <div class="field" style="margin-top:12px"><label>Component Log Entry</label><div class="hint" style="margin:0 0 8px">Remove-and-replace log entry and GAC Form 3671 repair tag, any time during the case.</div><button class="btn" id="exParts" style="width:100%">Component Log Entry / Form 3671${CASE.parts&&CASE.parts.length?` (${CASE.parts.length})`:""}</button></div>
     <button class="btn2" id="exMd" style="width:100%;margin-top:12px">Download Markdown (.md)</button>
     ${(MEL_OPS[cfg.melOps]||{}).amdl?`<button class="btn2" id="exAmdl" style="width:100%;margin-top:12px">Solairus AMDL (${CASE.clearing?'Completed':CASE.deferral?'MEL Deferral':'Discrepancy'})</button>`:''}`);
   if($('#exAmdl'))$('#exAmdl').onclick=async()=>{sync();if(CASE.deferral)try{await loadMel()}catch(e){}openCaseAmdl()};
@@ -2233,6 +2238,7 @@ $('#btnExport').onclick=()=>{
   const ET=wireTimes('ex',f,()=>{Object.assign(f,ET.read());$('#exTimes').textContent=timesLine(f)||'Not entered yet. Add them here to put them on the PDF.';saveCase()});
   const sync=()=>{f.reg=$('#exReg').value.trim().toUpperCase();f.sn=$('#exSn').value.trim();if(f.reg||f.sn)store.set(LAST_AC_KEY,{reg:f.reg,sn:f.sn});Object.assign(f,ET.read());saveCase()};
   $('#exMd').onclick=()=>{sync();exportMarkdown()};
+  $('#exParts').onclick=()=>{sync();openParts()};
   $('#exSumView').onclick=()=>{sync();openSummary()};
   $('#exSum').onclick=async()=>{sync();const b=$('#exSum');b.disabled=true;b.textContent=summaryStale()?'Writing Summary…':'Creating PDF…';try{const {blob,name}=await summaryPdf();b.textContent='✔ PDF ready';pdfOutHtml($('#exSumOut'),blob,name)}catch(e){b.disabled=false;b.textContent='Summary PDF';$('#exSumOut').innerHTML=`<div class="errbox">${esc(e.message)}</div>`}};
   $('#exPdf').onclick=async()=>{
@@ -2842,6 +2848,355 @@ $('#wGo').onclick=doWiring;$('#wQuery').addEventListener('keydown',e=>{if(e.key=
 /* iWDM serial set follows the S/N on the form, or the open case's S/N */
 {const sn=$('#fSn');if(sn){let t;sn.addEventListener('input',()=>{clearTimeout(t);t=setTimeout(()=>{if(!CASE)applyWiringSet(sn.value.trim())},500)})}}
 {const _wsRender=renderCase;renderCase=function(){_wsRender.apply(this,arguments);if(CASE&&CASE.form)applyWiringSet(CASE.form.sn||'')}}
+/* ═════════════════ COMPONENT LOG ENTRY + GAC FORM 3671 (remove and replace) ═════════════════ */
+// Every remove-and-replace in a case is a component transaction (CASE.parts). Each one gives:
+//  • a log entry PDF laid out like the operator's log entry (times row, numbered item, return to service statement, signature)
+//  • the Gulfstream Form GA 3671 repair tag, filled from the same data (blank form: data repo forms/gac_form_3671.pdf)
+// The installed part's release certificate (FAA 8130-3, TCCA Form One, EASA Form 1) can be photographed; Claude reads it
+// and fills the fields, and the technician checks and edits every one before the PDFs are made.
+const LE_PFX=(typeof PFX!=='undefined')?PFX:((typeof SY_PFX!=='undefined')?SY_PFX:'mxm');
+const LE_PERSON_KEY='mxm_le_person';           // technician name, certificate, phone, email (every aircraft type on this device)
+const LE_3671_KEY='mxm_3671';                  // customer block of Form 3671 (company, contact, codes, ship-to)
+const LE_RTS_KEY=LE_PFX+'_rtsop';              // last return to service operation picked
+const LE_DESIG_KEY=LE_PFX+'_acdesig';          // aircraft designation on the log entry header
+const F3671_FORM='forms/gac_form_3671.pdf';
+const LE_DESIG={G600:'GVII-G600',G500:'GVII-G500',G550:'GV-SP-G550',G650:'GVI-G650',G700:'GVIII-G700',G800:'GVIII-G800'};
+const LE_ENG_MODEL={G600:'PW815GA',G500:'PW814GA',G550:'BR700-710C4-11',G650:'BR700-725A1-12',G700:'Pearl 700',G800:'Pearl 700'};
+// Return to service statements, word for word from the operator's Sign-Off Statements sheet
+const LE_RTS={
+  std:{label:'Standard (Part 91)',
+    airframe:"I CERTIFY THAT THIS AIRCRAFT HAS BEEN INSPECTED/REPAIRED AS DESCRIBED ABOVE, IN ACCORDANCE WITH THE MANUFACTURER'S RECOMMENDED INSPECTION PROGRAM, PER FAR 91.409(F)(3), AND IS APPROVED FOR RETURN TO SERVICE WITH REGARD TO THE MAINTENANCE ACCOMPLISHED.",
+    apu:"I CERTIFY THAT THIS APU HAS BEEN INSPECTED/REPAIRED AS DESCRIBED ABOVE, IN ACCORDANCE WITH THE MANUFACTURER'S RECOMMENDED INSPECTION PROGRAM, PER FAR 91.409(F)(3), AND IS APPROVED FOR RETURN TO SERVICE WITH REGARD TO THE MAINTENANCE ACCOMPLISHED.",
+    engine:"I CERTIFY THAT THIS ENGINE HAS BEEN INSPECTED/REPAIRED AS DESCRIBED ABOVE, IN ACCORDANCE WITH THE MANUFACTURER'S RECOMMENDED INSPECTION PROGRAM, PER FAR 91.409(F)(3), AND IS APPROVED FOR RETURN TO SERVICE WITH REGARD TO THE MAINTENANCE ACCOMPLISHED."},
+  sol135:{label:'Solairus Part 135',
+    airframe:"I certify that this aircraft has been inspected/repaired as described above, in accordance with the manufacturer’s recommended inspection program, Sunset Aviation LLC’s GMM, per FAR 135.411(a)(2) and per Sunset Aviation LLC’s Policies and Procedures, and is approved for return to service with regard to the maintenance accomplished.",
+    apu:"I certify that this APU has been inspected/repaired as described above, in accordance with the manufacturer’s recommended inspection program, Sunset Aviation LLC’s GMM, per FAR 135.411(a)(2) and per Sunset Aviation LLC’s Policies and Procedures, and is approved for return to service with regard to the maintenance accomplished.",
+    engine:"I certify that this engine has been inspected/repaired as described above, in accordance with the manufacturer’s recommended inspection program, Sunset Aviation LLC’s GMM, per FAR 135.411(a)(2) and per Sunset Aviation LLC’s Policies and Procedures, and is approved for return to service with regard to the maintenance accomplished."},
+  sol91:{label:'Solairus Part 91',
+    airframe:"I certify that this aircraft has been inspected/repaired as described above, in accordance with the manufacturer’s recommended inspection program, Sunset Aviation LLC’s GMM, per FAR 135.411(a)(2) and per Sunset Aviation LLC’s Policies and Procedures, and is approved for return to service with regard to the maintenance accomplished.",
+    apu:"I certify that this APU has been inspected/repaired as described above, in accordance with the manufacturer’s recommended inspection program, Sunset Aviation LLC’s GMM, per FAR 135.411(a)(2) and per Sunset Aviation LLC’s Policies and Procedures, and is approved for return to service with regard to the maintenance accomplished.",
+    engine:"I certify that this engine has been inspected/repaired as described above, in accordance with the manufacturer’s recommended inspection program, Sunset Aviation LLC’s GMM, per FAR 91.409(F)(3) and per Sunset Aviation LLC’s Policies and Procedures, and is approved for return to service with regard to the maintenance accomplished."}
+};
+const LE_CAT={airframe:'Airframe',engine:'Engine',apu:'APU'};
+const LE_TDES={TSO:'TSO — Time Since Overhaul',TSN:'TSN — Time Since New',TSR:'TSR — Time Since Repaired / Inspected / Tested',TC:'TC — Time Continued'};
+const LE_STATUS=['NEW','OVERHAULED','REPAIRED','INSPECTED/TESTED','MODIFIED'];
+const LE_FORMS=['FAA 8130-3','TCCA Form One','EASA Form 1','Other'];
+const LE_RETURN=[['sched','Scheduled Removal','Scheduled Removal'],['custrep','Customer Repair','Customer Repair'],['rental','Rental Return','Rental Return Complete Rental Section'],['qa','QA Material Evaluation','QA Material Evaluation'],['warranty','Warranty Core','Warranty Core'],
+  ['sema','Special Missions Aircraft (SEMA)','Special Missions Aircraft eg SEMA'],['oae','Original Aircraft Equipment','Original Aircraft Equipment'],['aos','AOS / Plane Parts','AOSPlane Parts'],['exch','Exchange Core','Exchange Core'],['unused','Unused Return for Credit','Unused Return for Credit']];
+const LE_COND=[['ground','On Ground','On ground'],['first','At First Power Up','At first power up'],['any','At Any Power Up','At any power up'],['flight','In Flight','In Flight'],['climb','Climb','Climb'],['descent','Descent','Descent'],['landing','Landing','Landing']];
+const leTypeName=()=>(typeof APPNAME!=='undefined'?APPNAME:'');
+const leUnit=cat=>cat==='engine'?'ENC':cat==='apu'?'STARTS':'AFL';
+function leRtsDefault(){const s=store.get(LE_RTS_KEY,null);if(s&&LE_RTS[s])return s;let ops='';try{ops=cfg.melOps||''}catch(e){}return ops==='135-solairus'?'sol135':'std'}
+function leTdesFromStatus(s){s=String(s||'').toUpperCase();if(/OVERHAUL/.test(s))return 'TSO';if(/^NEW|\bNEW\b/.test(s))return 'TSN';if(s)return 'TSR';return ''}
+function leNewPart(o){o=o||{};const today=isoDay(new Date());
+  return {id:'pt'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),at:Date.now(),cat:o.cat||'airframe',pos:o.pos||'',task:o.task||'',name:o.name||'',desc:o.desc||'',reason:o.reason||'',
+    off:{pn:o.pn_off||'',sn:o.sn_off||''},on:{pn:o.pn_on||'',sn:o.sn_on||''},
+    tdes:'',mos:'0',hrs:'0',cyc:'0',inst:today,tcDate:'',cert:{form:'',trk:'',status:'',date:'',org:'',remarks:''},photo:'',
+    offLife:{},rts:{cat:o.cat||'airframe',op:leRtsDefault()},f3671:{}}}
+function leParts(){if(!CASE)return [];if(!Array.isArray(CASE.parts))CASE.parts=[];return CASE.parts}
+function lePart(id){return leParts().find(p=>p.id===id)||null}
+// the agent reported a remove-and-replace: add it, or fill in the matching one (same P/N off or on)
+function leUpsert(i){
+  const L=leParts();const k=s=>String(s||'').replace(/\s+/g,'').toUpperCase();
+  let p=L.find(x=>(i.sn_off&&k(x.off.sn)===k(i.sn_off))||(i.sn_on&&k(x.on.sn)===k(i.sn_on))||(i.pn_off&&k(x.off.pn)===k(i.pn_off)&&!x.off.sn)||(i.pn_on&&k(x.on.pn)===k(i.pn_on)&&!x.on.sn));
+  if(!p){p=leNewPart(i);L.push(p)}
+  const set=(o,key,v)=>{v=String(v||'').trim();if(v&&!o[key])o[key]=v};
+  set(p.off,'pn',i.pn_off);set(p.off,'sn',i.sn_off);set(p.on,'pn',i.pn_on);set(p.on,'sn',i.sn_on);
+  set(p,'name',i.part_name);set(p,'task',i.amm_task);set(p,'reason',i.reason_removed);set(p,'desc',i.description);
+  if(i.category&&LE_CAT[i.category]&&!p.catSet){p.cat=i.category;p.rts.cat=i.category}
+  if(i.engine_position&&!p.pos)p.pos=String(i.engine_position).replace(/\D/g,'').slice(0,1);
+  p.upd=Date.now();saveCase();return p;
+}
+// AI tool: a component was removed and replaced (whether or not it fixed the fault)
+const LE_TOOL={name:'record_component_change',description:'Record a component transaction (a part removed and a replacement installed) as soon as the technician reports it, whether or not it fixed the fault and even while the case stays open. The app prepares the component log entry (removed / installed P/N and S/N, reason removed, installed part times from the replacement part\'s release certificate) and the Gulfstream Form 3671 repair tag for the removed part, and offers them to the technician. Use the technician\'s facts only: never invent part numbers, serial numbers or times. Call it again for each additional part changed.',
+  input_schema:{type:'object',properties:{part_name:{type:'string',description:'Component name as the IPC / AMM names it, e.g. "Pack Temperature Control Valve"'},
+    category:{type:'string',enum:['airframe','engine','apu'],description:'airframe for airframe systems; engine for engine and engine-mounted components (including nacelle / thrust reverser items the engine log covers); apu for the APU and APU-mounted components'},
+    engine_position:{type:'string',description:'"1" (left) or "2" (right) for engine components'},
+    pn_off:{type:'string'},sn_off:{type:'string'},pn_on:{type:'string'},sn_on:{type:'string'},
+    reason_removed:{type:'string',description:'Short reason, e.g. "INOPERATIVE - PACK OVERTEMP" or "A-TIME CHANGE"'},
+    amm_task:{type:'string',description:'AMM removal / installation task number you found, e.g. 21-51-41-400-801'},
+    description:{type:'string',description:'Log-style work description in capitals, e.g. "L PACK TEMPERATURE CONTROL VALVE - REMOVED AND REPLACED IAW AMM 21-51-41-400-801. OPS CHECK IAW AMM 21-51-00-710-801 GOOD."'}},required:['part_name','category']}};
+try{TOOLS.splice(Math.max(0,TOOLS.length-1),0,LE_TOOL)}catch(e){}
+try{TOOL_LABEL.record_component_change=i=>`Component change: ${i.part_name||''}`}catch(e){}
+{const _rt=runTool;runTool=async function(name,input){
+  if(name==='record_component_change'){
+    if(!CASE)return {summary:'no case',error:true,data:{error:'No open case.'}};
+    const p=leUpsert(input||{});
+    const miss=[!p.off.pn&&'P/N off',!p.off.sn&&'S/N off',!p.on.pn&&'P/N on',!p.on.sn&&'S/N on',!p.reason&&'reason removed'].filter(Boolean);
+    return {summary:`${(p.name||'component').slice(0,40)} logged`,data:{recorded:true,part_id:p.id,
+      paperwork:'Component Log Entry and GAC Form 3671 are ready under this message and in Export Case. The technician photographs the replacement part\'s 8130-3 / Form One so its times and certificate data fill in, checks every field, picks the return to service statement and signs.',
+      missing:miss.length?miss:undefined,reminder:miss.length?'Ask the technician for the missing '+miss.join(', ')+'.':undefined}};
+  }
+  const r=await _rt(name,input);
+  if(name==='record_corrective_action'&&r&&r.data&&r.data.recorded&&input&&(input.pn_off||input.pn_on||input.sn_off||input.sn_on)){
+    const p=leUpsert({pn_off:input.pn_off,sn_off:input.sn_off,pn_on:input.pn_on,sn_on:input.sn_on,description:input.corrective_action});r.data.part_id=p.id}
+  return r}}
+// chat card under the tool line
+function partCard(id){
+  const p=lePart(id);if(!p)return null;const el=document.createElement('div');el.className='card melcard partcard';el.dataset.part=id;
+  const L=[p.off.pn&&`OFF ${p.off.pn}${p.off.sn?' S/N '+p.off.sn:''}`,p.on.pn&&`ON ${p.on.pn}${p.on.sn?' S/N '+p.on.sn:''}`].filter(Boolean);
+  el.innerHTML=`<div class="melopt"><span class="melcat catD">R&amp;R</span><span class="melnum">Component Transaction · ${esc(LE_CAT[p.cat]||'')}</span></div>
+    <div class="meltitle" style="font-size:15px;font-weight:800;margin-top:6px">${esc(p.name||'Component')}</div>
+    ${L.length?`<div class="hint">${esc(L.join(' · '))}</div>`:''}<div class="hint">${p.cert&&p.cert.trk?esc(`${p.cert.form||'Release'} ${p.cert.trk} read`):'Photograph the 8130-3 / Form One to fill the installed part times.'}</div>
+    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn small pcLog">Log Entry</button><button class="btn2 small pc3671">Form 3671</button></div>`;
+  el.querySelector('.pcLog').onclick=()=>openPart(id);el.querySelector('.pc3671').onclick=()=>openPart(id,'3671');
+  return el;
+}
+function refreshPartCards(){$$('#chatLog .partcard').forEach(o=>{const n=partCard(o.dataset.part);if(n)o.replaceWith(n)})}
+// list of the case's transactions (Export Case → Component Log Entry)
+function openParts(){
+  if(!CASE){showModal('COMPONENT LOG ENTRY','<div class="kv">Open a case first.</div>');return}
+  const L=leParts();
+  showModal('COMPONENT LOG ENTRY',`<div class="kv">Remove-and-replace transactions in this case. Each one makes a log entry and a GAC Form 3671 repair tag for the removed part, any time, even while the case is open.</div>
+    ${L.length?L.map(p=>`<div class="res lepick" data-id="${p.id}"><div class="h"><span class="mt">${esc(LE_CAT[p.cat]||'')}</span><span class="ttl">${esc(p.name||'Component')}</span></div>
+      <div class="lb">${esc([p.off.pn&&'Off '+p.off.pn+(p.off.sn?' S/N '+p.off.sn:''),p.on.pn&&'On '+p.on.pn+(p.on.sn?' S/N '+p.on.sn:'')].filter(Boolean).join(' · ')||'No part numbers yet')}</div>
+      <div class="sn">${esc(dmyStr(p.inst)||'')}${p.cert&&p.cert.trk?' · '+esc((p.cert.form||'')+' '+p.cert.trk):''}</div></div>`).join(''):'<div class="hint" style="margin:10px 0">No component changes recorded yet. Tell the assistant when you remove and replace a part, or add one here.</div>'}
+    <button class="btn" id="leAdd" style="width:100%;margin-top:10px">Add Component Change</button>`);
+  $$('#modalBody .lepick').forEach(el=>el.onclick=()=>openPart(el.dataset.id));
+  $('#leAdd').onclick=()=>{const p=leNewPart({desc:'',reason:''});leParts().push(p);saveCase();openPart(p.id)};
+}
+// the editor: component, 8130 photo, installed part times, log entry header and sign-off, Form 3671
+function openPart(id,focus){
+  const p=lePart(id);if(!p)return;const f=CASE.form=CASE.form||{};const me=Object.assign({},store.get(AMDL_PERSON_KEY,{})||{},store.get(LE_PERSON_KEY,{})||{});
+  if(!me.name&&typeof syCfg==='function')me.name=syCfg().tech||'';
+  const cu=store.get(LE_3671_KEY,{})||{};const T=p.f3671=p.f3671||{};const ol=p.offLife=p.offLife||{};
+  if(!p.wo)p.wo=`${f.sn||''}_${dmy(parseDay(p.inst)||new Date())}`.replace(/^_/,'');
+  const fld=(id,label,val,ph='',extra='')=>`<div class="field"><label>${label}</label><input id="${id}" value="${esc(val||'')}" placeholder="${esc(ph)}" autocomplete="off" ${extra}></div>`;
+  const sel=(id,label,opts,v)=>`<div class="field"><label>${label}</label><select id="${id}">${opts.map(([k,t])=>`<option value="${esc(k)}" ${k===v?'selected':''}>${esc(t)}</option>`).join('')}</select></div>`;
+  const chk=(id,label,on)=>`<label class="lechk"><input type="checkbox" id="${id}" ${on?'checked':''}> ${esc(label)}</label>`;
+  const codes=(f.cmc||[]).filter(x=>x.kind==='code'&&x.code).map(x=>x.code);
+  const ph=String(f.phase||'');const inAir=/takeoff|climb|cruise|descent|approach|landing/i.test(ph);
+  const condDef={ground:!!ph&&!inAir,flight:inAir,climb:/takeoff|climb/i.test(ph),descent:/descent|approach/i.test(ph),landing:/landing/i.test(ph),first:/power up/i.test(ph)};
+  const fim=[...new Set((CASE.msgs||[]).filter(m=>m.role==='assistant').flatMap(m=>m.content.filter(b=>b.type==='text').flatMap(b=>(b.text.match(/FIM\s+(?:TASK\s+)?(\d{2}-\d{2}-\d{2}(?:-\d{3}-\d{3})?)/gi)||[]).map(s=>s.replace(/^FIM\s+(TASK\s+)?/i,'')))))].slice(0,2).join(', ');
+  showModal('COMPONENT LOG ENTRY',`<div id="leWrap">
+    <h3 class="amh">Component</h3>
+    <div class="grid2">${sel('leCat','Category',Object.entries(LE_CAT),p.cat)}${sel('lePos','Engine position',[['','—'],['1','Engine 1 (Left)'],['2','Engine 2 (Right)']],p.pos)}</div>
+    <div class="grid2">${fld('leName','Part name',p.name,'Pack Temperature Control Valve')}${fld('leTask','Task No. / Position',p.task,'21-51-41-400-801 / LH')}</div>
+    <div class="field"><label>Description</label><textarea id="leDesc" rows="3" placeholder="L PACK TEMPERATURE CONTROL VALVE - REMOVED AND REPLACED IAW AMM … OPS CHECK GOOD.">${esc(p.desc||'')}</textarea></div>
+    <div class="field"><label>Reason removed</label><input id="leReason" value="${esc(p.reason||'')}" placeholder="INOPERATIVE / A-TIME CHANGE" autocomplete="off"></div>
+    <h3 class="amh">Removed</h3>
+    <div class="grid2">${fld('leOffPn','P/N off',p.off.pn)}${fld('leOffSn','S/N off',p.off.sn)}</div>
+    <h3 class="amh">Installed</h3>
+    <div class="grid2">${fld('leOnPn','P/N on',p.on.pn)}${fld('leOnSn','S/N on',p.on.sn)}</div>
+    <div class="field"><label>Release certificate (8130-3 / Form One / EASA Form 1)</label>
+      <div class="phbtns"><button class="btn2 small" id="leCam" type="button"><span class="ms">photo_camera</span>Take Photo</button><button class="btn2 small" id="leLib" type="button"><span class="ms">photo_library</span>Photo Library</button>${p.photo?'<button class="btn2 small" id="leView" type="button"><span class="ms">image</span>View</button>':''}</div>
+      <div id="leScan" class="hint" style="margin-top:6px">${p.cert&&p.cert.readAt?`Read ${esc(dmyt(p.cert.readAt))}. Check every field against the certificate.`:'Claude reads the certificate and fills the fields below. Check every one.'}</div></div>
+    <div class="grid2">${sel('leForm','Form',[['','—'],...LE_FORMS.map(x=>[x,x])],p.cert.form)}${fld('leTrk','Form tracking no.',p.cert.trk)}</div>
+    <div class="grid2"><div class="field"><label>Status / work (block 11)</label><input id="leStatus" list="leStatusL" value="${esc(p.cert.status||'')}" autocomplete="off"><datalist id="leStatusL">${LE_STATUS.map(s=>`<option value="${s}">`).join('')}</datalist></div>${fld('leCertDate','Certificate date',p.cert.date,'DD MMM YYYY')}</div>
+    <div class="grid2">${fld('leOrg','Approved organization',p.cert.org)}${fld('leRemarks','Remarks (block 12)',p.cert.remarks)}</div>
+    <h3 class="amh">Installed Part Times</h3>
+    <div class="grid2">${sel('leTdes','Designation',[['','—'],...Object.entries(LE_TDES)],p.tdes)}${fld('leInst','Install date',p.inst,'','type="date"')}</div>
+    <div class="grid3">${fld('lePMos','Months',p.mos,'0','inputmode="numeric"')}${fld('lePHrs','Hours',p.hrs,'0','inputmode="decimal"')}${fld('lePCyc','<span id="leCycL">Cycles</span>',p.cyc,'0','inputmode="numeric"')}</div>
+    <div id="leTcBox" class="${p.tdes==='TC'?'':'hidden'}">${fld('leTcDate','Times continued as of',p.tcDate,'DD MMM YYYY')}</div>
+    <div class="hint" id="leTimesHint" style="margin:-4px 0 10px"></div>
+    <h3 class="amh">Log Entry</h3>
+    <div class="grid2">${fld('leWo','Work order #',p.wo)}${fld('leDesig','Aircraft',store.get(LE_DESIG_KEY,'')||LE_DESIG[leTypeName()]||leTypeName())}</div>
+    <div class="grid2">${fld('leReg','Registration',f.reg,'N1KE','autocapitalize="characters"')}${fld('leSn','Serial number',f.sn,typeof SN_HINT!=='undefined'?SN_HINT:'')}</div>
+    <details class="more" id="leTimesBox" ${TIMES_KEYS.some(k=>f[k])?'':'open'}><summary>▸ Aircraft, Engine &amp; APU Times</summary>${timesHtml('le',f)}${fld('leApuSt','APU starts',f.apuSt,'','inputmode="numeric"')}</details>
+    <div class="grid2">${sel('leRtsCat','Return to service statement',Object.entries(LE_CAT),p.rts.cat||p.cat)}${sel('leRtsOp','Operation',Object.entries(LE_RTS).map(([k,v])=>[k,v.label]),p.rts.op||leRtsDefault())}</div>
+    <div class="kv" id="leRtsText" style="margin:-2px 0 12px;font-size:12.5px"></div>
+    <div class="grid2">${fld('leTech','Work performed by',me.name)}${fld('leCert','Certificate #',me.cert)}</div>
+    <button class="btn" id="leGo" style="width:100%">Create Log Entry PDF</button><div id="leOut" style="margin-top:10px"></div>
+    <details class="more" id="le3671Box" ${focus==='3671'?'open':''} style="margin-top:14px"><summary>▸ GAC Form 3671 (Repair Tag for the Removed Part)</summary>
+      <div class="field"><label>Check all that apply</label><div class="lechks">${LE_RETURN.map(([k,t])=>chk('leR_'+k,t,T.ret&&T.ret[k])).join('')}</div></div>
+      <div class="grid3">${sel('lePri','Priority',[['','—'],['AOG','AOG'],['Urgent','Urgent'],['Routine','Routine']],T.pri||'')}${fld('leRetDate','Requested return date',T.retDate,'DD MMM YYYY')}${fld('leQty','Quantity',T.qty||'1','','inputmode="numeric"')}</div>
+      <div class="grid2">${fld('leCo','Customer company',cu.company||(leRtsDefault()!=='std'?'Solairus Aviation':''))}${fld('leCode','Customer code',cu.code)}</div>
+      <div class="grid2">${fld('leContact','Customer contact',cu.contact||me.name)}${fld('lePhone','Customer phone',cu.phone||me.phone,'','inputmode="tel"')}</div>
+      <div class="grid2">${fld('leEmail','Customer email',cu.email||me.email,'','inputmode="email"')}${fld('lePo','Customer PO',T.po)}</div>
+      <div class="grid2">${fld('leRsn','Repair station number',cu.rsn)}${fld('leMfg','Manufacture date (removed part)',ol.mfg)}</div>
+      <div class="hint" style="margin:0 0 6px">Removed part life status (14 CFR 43.10; enter the values that apply per AMM Chapter 5)</div>
+      <div class="grid3">${fld('leTsn','Time since new',ol.tsn)}${fld('leCsn','Cycles since new',ol.csn)}${fld('leYsn','Yrs / mths since new',ol.ysn)}</div>
+      <div class="grid3">${fld('leTso','Time since OH / res',ol.tso)}${fld('leCso','Cycles since OH / res',ol.cso)}${fld('leYso','Yrs / mths since OH',ol.yso)}</div>
+      <div class="grid2">${fld('leTot','Total life yrs / mths',ol.tot)}${fld('leInl','Installed life yrs / mths',ol.inl)}</div>
+      <div class="grid2">${fld('leEngModel','Engine / APU model',T.engModel||(p.cat==='engine'?LE_ENG_MODEL[leTypeName()]||'':''))}${fld('leEngSn','Engine / APU S/N',T.engSn)}</div>
+      <div class="grid3">${sel('leCodesYN','Fault codes available',[['','—'],['Yes','Yes'],['No','No']],T.codesYN!=null?T.codesYN:(codes.length?'Yes':''))}${fld('leCode1','Code',T.code1!=null?T.code1:codes[0]||'')}${fld('leCode2','Code',T.code2!=null?T.code2:codes[1]||'')}</div>
+      <div class="field"><label>Condition at time of failure</label><div class="lechks">${LE_COND.map(([k,t])=>chk('leC_'+k,t,T.cond?T.cond[k]:condDef[k])).join('')}</div></div>
+      <div class="grid2">${fld('leTime','Time',T.time)}${fld('leAlt','Cruise altitude',T.alt!=null?T.alt:(/cruise/i.test(ph)?f.alt||'':''))}</div>
+      <div class="grid2">${fld('leFim','FIM section used',T.fim!=null?T.fim:fim)}${fld('leMycmp','MyCMP diagnostics session #',T.mycmp)}</div>
+      <div class="grid2">${sel('leSolved','Replacement part solved the problem',[['','—'],['Yes','Yes'],['No','No']],T.solved!=null?T.solved:(CASE.clearing?'Yes':''))}${fld('lePocPhone','Point of contact phone',T.pocPhone||me.phone,'','inputmode="tel"')}</div>
+      <div class="field"><label>Certification requirements</label><div class="lechks">${chk('leC8130','FAA 8130-3',T.c8130!=null?T.c8130:true)}${chk('leCEasa','EASA Form 1',T.cEasa)}</div></div>
+      <div class="grid2">${fld('leShip','Ship to address',cu.ship)}${fld('leCarrier','Carrier',cu.carrier)}</div>
+      <div class="grid2">${fld('leAcct','Carrier account #',cu.acct)}${fld('leShipInst','Shipping instructions',T.shipInst)}</div>
+      <div class="field"><label>Customer certificate</label><div class="lechks">${chk('leRtAp','FAA Rating Airframe/Powerplant',cu.rtAp!=null?cu.rtAp:true)}${chk('leRtCrs','Certified Repair Station',cu.rtCrs)}${chk('leRtMil','Military',cu.rtMil)}${chk('leRtFnaa','FNAA',cu.rtFnaa)}</div></div>
+      <button class="btn" id="le3671Go" style="width:100%">Create GAC Form 3671</button><div id="le3671Out" style="margin-top:10px"></div>
+    </details>
+    <button class="btn2" id="leDel" style="width:100%;margin-top:16px">Remove This Transaction</button></div>`);
+  const ET=wireTimes('le',f,()=>{Object.assign(f,ET.read());saveCase()});
+  const g=id=>{const e=$('#'+id);return e?e.value.trim():''};const c=id=>{const e=$('#'+id);return !!(e&&e.checked)};
+  const rtsText=()=>{const o=LE_RTS[g('leRtsOp')]||LE_RTS.std;$('#leRtsText').textContent=o[g('leRtsCat')]||o.airframe};
+  const timesHint=()=>{const d=g('leTdes'),u=leUnit(g('leCat'));$('#leCycL').textContent=u==='AFL'?'Cycles (AFL)':u==='ENC'?'Cycles (ENC)':'APU starts';
+    $('#leTcBox').classList.toggle('hidden',d!=='TC');$('#lePos').closest('.field').style.opacity=g('leCat')==='engine'?1:.45;
+    $('#leTimesHint').textContent=d==='TC'?'Time continued: enter the times the part carries and the date they are counted to.':d?`${d} times are counted from the install date (${dmyStr(g('leInst'))||'—'}).`:'Pick the designation from the release certificate (status / block 11).'};
+  // save everything typed (debounced) so the transaction survives closing the sheet and syncs with the case
+  const read=()=>{
+    p.cat=g('leCat');p.pos=g('lePos');p.name=g('leName');p.task=g('leTask');p.desc=$('#leDesc').value.trim();p.reason=g('leReason');
+    p.off={pn:g('leOffPn'),sn:g('leOffSn')};p.on={pn:g('leOnPn'),sn:g('leOnSn')};
+    Object.assign(p.cert,{form:g('leForm'),trk:g('leTrk'),status:g('leStatus'),date:g('leCertDate'),org:g('leOrg'),remarks:g('leRemarks')});
+    p.tdes=g('leTdes');p.inst=g('leInst');p.mos=g('lePMos');p.hrs=g('lePHrs');p.cyc=g('lePCyc');p.tcDate=g('leTcDate');p.wo=g('leWo');
+    p.rts={cat:g('leRtsCat'),op:g('leRtsOp')};
+    f.reg=g('leReg').toUpperCase();f.sn=g('leSn');f.apuSt=g('leApuSt');Object.assign(f,ET.read());
+    T.ret=Object.fromEntries(LE_RETURN.map(([k])=>[k,c('leR_'+k)]));T.cond=Object.fromEntries(LE_COND.map(([k])=>[k,c('leC_'+k)]));
+    Object.assign(T,{pri:g('lePri'),retDate:g('leRetDate'),qty:g('leQty'),po:g('lePo'),engModel:g('leEngModel'),engSn:g('leEngSn'),codesYN:g('leCodesYN'),code1:g('leCode1'),code2:g('leCode2'),time:g('leTime'),alt:g('leAlt'),fim:g('leFim'),mycmp:g('leMycmp'),solved:g('leSolved'),pocPhone:g('lePocPhone'),c8130:c('leC8130'),cEasa:c('leCEasa'),shipInst:g('leShipInst')});
+    Object.assign(ol,{mfg:g('leMfg'),tsn:g('leTsn'),csn:g('leCsn'),ysn:g('leYsn'),tso:g('leTso'),cso:g('leCso'),yso:g('leYso'),tot:g('leTot'),inl:g('leInl')});
+    p.upd=Date.now();
+  };
+  const remember=()=>{
+    store.set(LE_PERSON_KEY,{name:g('leTech'),cert:g('leCert'),phone:g('lePocPhone')||me.phone||'',email:me.email||g('leEmail')||''});
+    store.set(LE_3671_KEY,{company:g('leCo'),code:g('leCode'),contact:g('leContact'),phone:g('lePhone'),email:g('leEmail'),rsn:g('leRsn'),ship:g('leShip'),carrier:g('leCarrier'),acct:g('leAcct'),rtAp:c('leRtAp'),rtCrs:c('leRtCrs'),rtMil:c('leRtMil'),rtFnaa:c('leRtFnaa')});
+    store.set(LE_RTS_KEY,g('leRtsOp'));const d=g('leDesig');if(d)store.set(LE_DESIG_KEY,d===(LE_DESIG[leTypeName()]||leTypeName())?'':d);
+    if(f.reg||f.sn)store.set(LAST_AC_KEY,{reg:f.reg,sn:f.sn});
+  };
+  let tmr=null;const draft=()=>{clearTimeout(tmr);tmr=setTimeout(()=>{if(!lePart(id)||!$('#leWrap'))return;read();saveCase();refreshPartCards()},400)};
+  $('#leWrap').addEventListener('input',draft);$('#leWrap').addEventListener('change',draft);
+  $('#leCat').addEventListener('change',()=>{p.catSet=true;$('#leRtsCat').value=g('leCat');if(g('leCat')==='engine'&&!g('leEngModel'))$('#leEngModel').value=LE_ENG_MODEL[leTypeName()]||'';rtsText();timesHint()});
+  ['leRtsCat','leRtsOp'].forEach(i=>$('#'+i).addEventListener('change',rtsText));
+  ['leTdes','leInst'].forEach(i=>$('#'+i).addEventListener('change',timesHint));
+  rtsText();timesHint();
+  // release certificate photo → Claude reads it → fields filled for the technician to check
+  const pick=cam=>{const i=document.createElement('input');i.type='file';i.accept='image/*';if(cam)i.setAttribute('capture','environment');i.onchange=()=>{if(i.files&&i.files[0])leScanCert(p,i.files[0])};i.click()};
+  $('#leCam').onclick=()=>pick(true);$('#leLib').onclick=()=>pick(false);if($('#leView'))$('#leView').onclick=()=>phOpen(p.photo);
+  $('#leDel').onclick=()=>{if(!confirmDel($('#leDel')))return;CASE.parts=leParts().filter(x=>x.id!==id);saveCase();$$('#chatLog .partcard').forEach(x=>{if(x.dataset.part===id)x.remove()});openParts()};
+  const outBtn=async(btnId,outId,label,fn)=>{read();remember();saveCase();refreshPartCards();const b=$('#'+btnId);b.disabled=true;b.textContent='Creating PDF…';$('#'+outId).innerHTML='';
+    try{const {blob,name,notes}=await fn();b.disabled=false;b.textContent=label;pdfOutHtml($('#'+outId),blob,name);if(notes&&notes.length)$('#'+outId).insertAdjacentHTML('afterbegin',`<div class="melrow melwarn" style="margin-bottom:8px">${notes.map(esc).join('<br>')}</div>`)}
+    catch(e){b.disabled=false;b.textContent=label;$('#'+outId).innerHTML=`<div class="errbox">${esc(e.message||String(e))}</div>`}};
+  $('#leGo').onclick=()=>outBtn('leGo','leOut','Create Log Entry PDF',()=>buildLogEntry(p,{desig:g('leDesig'),tech:g('leTech'),cert:g('leCert')}));
+  $('#le3671Go').onclick=()=>outBtn('le3671Go','le3671Out','Create GAC Form 3671',()=>build3671(p,{company:g('leCo'),code:g('leCode'),contact:g('leContact'),phone:g('lePhone'),email:g('leEmail'),rsn:g('leRsn'),ship:g('leShip'),carrier:g('leCarrier'),acct:g('leAcct'),
+    rtAp:c('leRtAp'),rtCrs:c('leRtCrs'),rtMil:c('leRtMil'),rtFnaa:c('leRtFnaa'),tech:g('leTech'),cert:g('leCert')}));
+  if(focus==='3671')setTimeout(()=>{const d=$('#le3671Box');if(d)d.scrollIntoView({block:'start'})},60);
+}
+function confirmDel(b){if(b.dataset.armed)return true;b.dataset.armed='1';b.textContent='Tap Again to Remove';setTimeout(()=>{if(b.isConnected){delete b.dataset.armed;b.textContent='Remove This Transaction'}},4000);return false}
+const LE_SCAN_SYS=`You read aviation airworthiness release certificates from a photo: FAA Form 8130-3, Transport Canada Form One (24-0078), EASA Form 1, or a similar authorized release certificate. Return ONLY a JSON object, no prose, with these string keys:
+form ("FAA 8130-3", "TCCA Form One", "EASA Form 1", or "Other: <name>"), tracking_no (block 3 form tracking number), organization (block 4, name and city only), work_order (block 5), description (block 7), part_number (block 8), quantity (block 9), serial_number (block 10), status (block 11 exactly as printed, e.g. NEW, OVERHAULED, REPAIRED, INSPECTED/TESTED, MODIFIED), remarks (block 12, verbatim but at most 300 characters), date (block 14e or the release date, as "D MMM YYYY" with the month in capitals, e.g. "21 OCT 2026"), tsn_hours, tsn_cycles, tso_hours, tso_cycles (only if printed in the remarks), legible ("yes", or a list of the blocks you could not read).
+Copy characters exactly. If a value is missing or not legible use "". Never guess a part number, serial number, date or time.`;
+async function leScanCert(p,file){
+  const box=$('#leScan');const say=(h,err)=>{if(box){box.innerHTML=h;box.classList.toggle('errbox',!!err)}};
+  try{
+    say('Reading the photo…');
+    const pid=await phFromFile(file);p.photo=pid;saveCase();
+    if(typeof syOn==='function'&&syOn()&&typeof syPushPhotos==='function')syPushPhotos(CASE).catch(()=>{});
+    if(!cfg.anthropicKey){say('Photo saved with the transaction. Add your Anthropic API key in Settings so Claude can read it.',true);return}
+    const v=await phGet(pid);say('Claude is reading the certificate…');
+    let txt='';for(const m of [...new Set([SUM_MODEL,cfg.model])]){try{txt=await claudeOnce(LE_SCAN_SYS,[{type:'image',source:{type:'base64',media_type:v.mt,data:v.data}},{type:'text',text:'Read this release certificate.'}],1500,m);break}catch(e){if(e.status===401)throw e}}
+    const j=JSON.parse((txt.match(/\{[\s\S]*\}/)||['{}'])[0]);
+    const put=(id,val)=>{const e=$('#'+id);if(e&&val!=null&&String(val).trim()!==''){e.value=String(val).trim();e.classList.add('lefilled')}};
+    const notes=[];
+    const onPn=$('#leOnPn').value.trim(),onSn=$('#leOnSn').value.trim();
+    if(j.part_number&&onPn&&onPn.replace(/\s/g,'').toUpperCase()!==String(j.part_number).replace(/\s/g,'').toUpperCase())notes.push(`P/N on was ${onPn}; the certificate shows ${j.part_number}.`);
+    if(j.serial_number&&onSn&&onSn.replace(/\s/g,'').toUpperCase()!==String(j.serial_number).replace(/\s/g,'').toUpperCase())notes.push(`S/N on was ${onSn}; the certificate shows ${j.serial_number}.`);
+    put('leOnPn',j.part_number);put('leOnSn',j.serial_number);
+    const form=String(j.form||'');put('leForm',LE_FORMS.find(x=>form.toUpperCase().startsWith(x.toUpperCase()))||(form?'Other':''));
+    put('leTrk',j.tracking_no);put('leStatus',String(j.status||'').toUpperCase());put('leCertDate',j.date?dmyStr(j.date).toUpperCase():'');put('leOrg',j.organization);put('leRemarks',j.remarks);
+    if(!$('#leName').value.trim()&&j.description)put('leName',String(j.description).replace(/\b\w+/g,w=>w.charAt(0)+w.slice(1).toLowerCase()));
+    const des=leTdesFromStatus(j.status);if(des&&!$('#leTdes').value){$('#leTdes').value=des;$('#leTdes').dispatchEvent(new Event('change'))}
+    if(j.tsn_hours||j.tso_hours)notes.push(`Remarks list times (${[j.tsn_hours&&'TSN '+j.tsn_hours+' hrs',j.tsn_cycles&&j.tsn_cycles+' cyc',j.tso_hours&&'TSO '+j.tso_hours+' hrs',j.tso_cycles&&j.tso_cycles+' cyc'].filter(Boolean).join(', ')}). If the part comes with time continued, set the designation to TC and enter them.`);
+    if(j.legible&&j.legible!=='yes')notes.push('Could not read: '+(Array.isArray(j.legible)?j.legible.join(', '):j.legible)+'.');
+    p.cert.readAt=Date.now();const w=$('#leWrap');if(w)w.dispatchEvent(new Event('change'));
+    say(`<b>Filled from the certificate (highlighted).</b> Check every field against the form.${notes.length?'<br>'+notes.map(esc).join('<br>'):''}`);
+  }catch(e){say(esc('Could not read the certificate: '+(e.message||e)+'. Enter the fields by hand.'),true)}
+}
+// ── the log entry PDF (Lato), laid out like the operator's log entry: header, times row, numbered items, statement, signature ──
+async function leFonts(doc){
+  const {PDFDocument,StandardFonts}=window.PDFLib;let reg=null,bold=null;
+  if(window.fontkit){doc.registerFontkit(window.fontkit);
+    try{const [a,b]=await Promise.all([ttfB64(LATO.normal),ttfB64(LATO.bold)]);const u=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));reg=await doc.embedFont(u(a),{subset:true});bold=await doc.embedFont(u(b),{subset:true})}catch(e){reg=bold=null}}
+  if(!reg){reg=await doc.embedFont(StandardFonts.Helvetica);bold=await doc.embedFont(StandardFonts.HelveticaBold)}
+  return {reg,bold};
+}
+function leItemLines(p){
+  const u=leUnit(p.cat),L=[];
+  L.push(p.desc||`${(p.name||'COMPONENT').toUpperCase()} - REMOVED AND REPLACED${p.task&&/\d{2}-\d{2}/.test(p.task)?' IAW AMM '+p.task:''}.`);
+  if(p.off.pn||p.off.sn)L.push(`Removed ${p.off.pn||''}  S/N# ${p.off.sn||''}${p.reason?'  Reason Removed '+p.reason.toUpperCase():''}`);
+  if(p.on.pn||p.on.sn){const t=[p.mos!==''&&p.mos!=null?p.mos+' MOS':'',p.hrs!==''&&p.hrs!=null?p.hrs+' HRS':'',p.cyc!==''&&p.cyc!=null?p.cyc+' '+u:''].filter(Boolean).join(' ');
+    L.push(`Installed ${p.on.pn||''} S/N# ${p.on.sn||''}${p.tdes?` Installed Part Times ${p.tdes}: ${t}${p.tdes==='TC'&&p.tcDate?' AS OF '+dmyStr(p.tcDate).toUpperCase():''}`:''}`)}
+  if(p.cert&&(p.cert.form||p.cert.trk))L.push(`${p.cert.form||'Release Certificate'}${p.cert.trk?' Form Tracking No. '+p.cert.trk:''}${p.cert.status?' · '+p.cert.status.toUpperCase():''}${p.cert.date?' · '+p.cert.date.toUpperCase():''}`);
+  return L;
+}
+async function buildLogEntry(p,o){
+  await amdlLib();const {PDFDocument,rgb}=window.PDFLib;
+  const doc=await PDFDocument.create();const {reg,bold}=await leFonts(doc);
+  const f=CASE.form||{};const W=612,H=792,M=17,R=595,k=rgb(0,0,0),gr=rgb(.78,.78,.78);
+  let page=doc.addPage([W,H]);const notes=[];
+  const T=(t,x,y,sz=8,fnt=reg,c=k)=>{t=String(t??'');if(t)page.drawText(t,{x,y:H-y,size:sz,font:fnt,color:c})};
+  const TR=(t,x,y,sz,fnt)=>T(t,x-fnt.widthOfTextAtSize(String(t),sz),y,sz,fnt);
+  const line=(x1,y1,x2,y2,w=.5,c=k)=>page.drawLine({start:{x:x1,y:H-y1},end:{x:x2,y:H-y2},thickness:w,color:c});
+  const wrap=(t,w,sz=8,fnt=reg)=>{const out=[];for(const para of String(t||'').split(/\n/)){let cur='';for(const word of para.split(/\s+/).filter(Boolean)){const nx=cur?cur+' '+word:word;if(fnt.widthOfTextAtSize(nx,sz)<=w)cur=nx;else{if(cur)out.push(cur);cur=word}}out.push(cur)}return out};
+  const desig=o.desig||LE_DESIG[leTypeName()]||leTypeName(),regn=(f.reg||'').toUpperCase(),sn=f.sn||'';
+  const inst=parseDay(p.inst)||new Date();
+  const header=()=>{
+    TR(`${desig} ${regn} S/N: ${sn}`.replace(/\s+/g,' ').trim(),R-5,25,10,bold);
+    T('Work Order #:',353,64,8,bold);T(p.wo||'',413,60,8);line(410,63,482,63,.5);
+    // times row
+    const cols=[[17,'Date',dmy(inst)],[85,'A/C HRS',f.tt],[137,'A/C AFL',f.cyc],[187,'ENG 1 HRS',f.e1Hrs],[239,'ENG 1 ENC',f.e1Cyc],[288,'ENG 2 HRS',f.e2Hrs],[337,'ENG 2 ENC',f.e2Cyc],[383,'APU HRS',f.apuHrs],[437,'APU Starts',f.apuSt],[491,'',''],[541,'',''],[593,'','']];
+    page.drawRectangle({x:17,y:H-102,width:576,height:35,borderColor:k,borderWidth:.6,color:undefined});
+    line(17,85,593,85,.5);
+    for(let i=0;i<cols.length-1;i++){const [x,h,v]=cols[i],x2=cols[i+1][0];if(i)line(x,67,x,102,.5);
+      if(h)T(h,x+(x2-x-bold.widthOfTextAtSize(h,7))/2,79,7,bold);if(v)T(String(v),x+5,96,7.2)}
+    T('No.',22,110,8,bold);T('Task No./Position',48,110,8,bold);T('Description',198,110,8,bold);line(17,115,593,115,1);
+  };
+  header();
+  let y=128;
+  const items=[{task:[p.task,p.cat==='engine'&&p.pos?'ENG '+p.pos:''].filter(Boolean).join(' / '),lines:leItemLines(p)}];
+  items.forEach((it,n)=>{
+    const rows=it.lines.flatMap((t,i)=>wrap(i?t:t.toUpperCase(),390,7.6));const tk=wrap(it.task,145,7.6);
+    const need=Math.max(rows.length,tk.length)*12.2+4;if(y+need>H-150){page=doc.addPage([W,H]);header();y=128}
+    T(String(n+1),22,y,7.6);tk.forEach((t,i)=>T(t,48,y+i*12.2,7.6));rows.forEach((t,i)=>T(t,198,y+i*12.2,7.6));
+    y+=need;line(17,y-7,593,y-7,.4,gr);y+=6;
+  });
+  y-=6;line(17,y-5,593,y-5,1);
+  const op=LE_RTS[p.rts&&p.rts.op]||LE_RTS.std,st=op[(p.rts&&p.rts.cat)||p.cat]||op.airframe;
+  const sl=wrap(st,460,7.6);sl.forEach((t,i)=>T(t,17,y+7+i*12,7.6));y+=7+sl.length*12;
+  const sy=y+64;
+  T('Work Performed By:',60,sy,8,bold);line(162,sy+2,325,sy+2,.6);T((o.tech||'').toUpperCase(),164,sy+11,7.6);
+  T('Certificate #:',336,sy,8,bold);T(o.cert||'',408,sy-4,7.6);line(405,sy+2,534,sy+2,.6);
+  if(!p.on.pn||!p.on.sn)notes.push('P/N or S/N on is blank.');if(!p.tdes)notes.push('Installed part time designation (TSO / TSN / TSR / TC) is not set.');if(!o.tech)notes.push('Work Performed By is blank.');
+  doc.setTitle(`Log Entry ${regn} ${p.name||''}`.trim());doc.setAuthor(o.tech||'');doc.setSubject(`${LE_CAT[p.cat]} component log entry`);
+  const bytes=await doc.save();
+  const tag=s=>String(s||'').replace(/[^A-Za-z0-9-]/g,'');
+  const name=`${[tag(regn)||leTypeName(),'LOG',tag(p.on.pn||p.off.pn)||'COMPONENT',dateCode(inst)].filter(Boolean).join('_')}.pdf`;
+  return {blob:new Blob([bytes],{type:'application/pdf'}),name,notes};
+}
+// ── GAC Form 3671: the fillable blank form from the data repo, filled field by field and left fillable for edits ──
+async function build3671(p,o){
+  await amdlLib();const {PDFDocument}=window.PDFLib;let tpl;
+  try{tpl=await rawFetch(F3671_FORM)}catch(e){throw new Error(/404|not found/i.test(e.message)?'The blank GAC Form 3671 (forms/gac_form_3671.pdf) is not in the data repo.':e.message)}
+  const doc=await PDFDocument.load(tpl);const form=doc.getForm();const f=CASE.form||{};const T=p.f3671||{},ol=p.offLife||{};const notes=[];
+  const touched=[];const set=(n,v)=>{v=String(v??'').trim();if(!v)return;try{const tf=form.getTextField(n);tf.setText(v);touched.push(tf)}catch(e){}};
+  const tick=(n,on)=>{if(!on)return;try{form.getCheckBox(n).check()}catch(e){try{const g=form.getRadioGroup(n);g.select(g.getOptions()[0])}catch(e2){}}};
+  const radio=(n,opt)=>{if(!opt)return;try{const g=form.getRadioGroup(n);const m=g.getOptions().find(x=>x.toLowerCase().startsWith(opt.toLowerCase()));if(m)g.select(m)}catch(e){try{form.getCheckBox(n).check()}catch(e2){}}};
+  const today=dmy(new Date());
+  set('Repair Station Number',o.rsn);set('Date',today);set('Quantity',T.qty||'1');set('Customer Purchase Order',T.po);set('Customer Code',o.code);
+  set('Customer Company Name',o.company);set('Customer Phone',o.phone);set('Customer Contact Name',o.contact||o.tech);set('Customer Email',o.email);
+  for(const [k,,fieldName] of LE_RETURN)tick(fieldName,T.ret&&T.ret[k]);
+  set('Aircraft Model',leTypeName());set('Aircraft Serial',f.sn);set('Aircraft Registration',(f.reg||'').toUpperCase());set('AC Hours',f.tt);set('AC Cycles',f.cyc);
+  if(p.cat==='engine'){tick('Engine',true);set('Text6',T.engModel);set('Text8',T.engSn);set('Text7',p.pos==='2'?f.e2Hrs:p.pos==='1'?f.e1Hrs:'');set('Text9',p.pos==='2'?f.e2Cyc:p.pos==='1'?f.e1Cyc:'');if(!p.pos)notes.push('Engine position not set: engine time and cycles left blank.')}
+  if(p.cat==='apu'){tick('APU',true);set('Text6',T.engModel);set('Text8',T.engSn);set('Text7',f.apuHrs);set('Text9',f.apuSt)}
+  set('Part Name',p.name);set('Part Number',p.off.pn);set('Serial Number',p.off.sn);set('Manufacture Date',ol.mfg);
+  set('Text10',ol.tsn);set('Text11',ol.csn);set('Text12',ol.ysn);set('Text13',ol.tso);set('Text14',ol.cso);set('Text15',ol.yso);set('Text16',ol.tot);set('Text17',ol.inl);
+  const disc=typeof caseDiscrepancy==='function'?caseDiscrepancy():'';
+  set('Reason for Part Removal',[p.reason&&p.reason.toUpperCase(),disc].filter(Boolean).join('\n'));
+  const cl=CASE.clearing&&CASE.clearing.corrective_action;
+  set('Work PerformedResolution',[p.desc,cl&&cl!==p.desc?cl:''].filter(Boolean).join('\n')||`${p.name||'Component'} removed and replaced.`);
+  radio('Are fault codes available',T.codesYN);set('Text24',T.code1);set('Text25',T.code2);
+  set('Text19',o.tech||o.contact);set('Text20',T.pocPhone||o.phone);
+  for(const [k,,fieldName] of LE_COND)tick(fieldName,T.cond&&T.cond[k]);
+  set('Text26',T.time);set('Text27',T.alt);set('FIM Section Used',T.fim);set('MyCMP Diagnostics Session Number',T.mycmp);
+  radio('Did the replacement part solve the problem',T.solved);
+  tick('AOG',T.pri==='AOG');tick('Urgent',T.pri==='Urgent');tick('Routine',T.pri==='Routine');set('Text23',T.retDate);
+  tick('undefined',T.c8130);tick('undefined_2',T.cEasa);
+  set('Ship to Address',o.ship);set('Carrier Carrier Account',o.carrier);set('Text18',o.acct);set('Shipping Instructions',T.shipInst);
+  set('Authorized Customer  Print Name',(o.tech||'').toUpperCase());set('Customer Certificate Number',o.cert);set('Military FAA Rating AirframePower plant Certified Repair Station  Certificate FNAA Date Signed',today);
+  tick('undefined_4',o.rtMil);tick('undefined_5',o.rtAp);tick('undefined_6',o.rtCrs);tick('undefined_7',o.rtFnaa);
+  // Lato at a size that fits each box (single lines shrink to the box width; the two large boxes use 9 pt)
+  try{const {reg}=await leFonts(doc);for(const tf of touched){const w=tf.acroField.getWidgets()[0];const r=w.getRectangle();const v=tf.getText()||'';
+    let sz=tf.isMultiline()?9:Math.min(9,Math.max(5,r.height-5));if(!tf.isMultiline())while(sz>5&&reg.widthOfTextAtSize(v,sz)>r.width-4)sz-=.25;
+    try{if(!tf.acroField.getDefaultAppearance())tf.acroField.setDefaultAppearance('/Helv 0 Tf 0 g');tf.setFontSize(sz);tf.updateAppearances(reg)}catch(e){console.warn('3671 field',tf.getName(),e)}}}catch(e){console.warn('3671 appearance',e)}
+  if(!p.off.pn||!p.off.sn)notes.push('Removed part P/N or S/N is blank.');if(!T.ret||!Object.values(T.ret).some(Boolean))notes.push('No return type is checked (Exchange Core, Customer Repair, Warranty Core…).');
+  doc.setTitle(`GAC Form 3671 ${p.off.pn||''} ${p.off.sn||''}`.trim());
+  const bytes=await doc.save({updateFieldAppearances:false}); /* keeps the form's own check box and radio drawings */const tag=s=>String(s||'').replace(/[^A-Za-z0-9-]/g,'');
+  const name=`${[tag(f.reg)||leTypeName(),'GAC3671',tag(p.off.pn),tag(p.off.sn),dateCode(new Date())].filter(Boolean).join('_')}.pdf`;
+  return {blob:new Blob([bytes],{type:'application/pdf'}),name,notes};
+}
+
 /* ═════════════════ PHOTOS (take or attach; kept on the device; Claude sees them) ═════════════════ */
 // Photos are shrunk to 1568 px (JPEG), stored in this browser's IndexedDB, and referenced in the case as {type:'image',photo:id}.
 // They are turned into real image blocks only when a request goes to the API. With case sync on they are also saved to the cases repo.
@@ -2894,7 +3249,7 @@ async function phHydrate(msgs){
 const SY_PH=(typeof SY_PFX!=='undefined'?SY_PFX:'x')+'_syncph';
 async function syPushPhotos(c){
   if(typeof syOn!=='function'||!syOn())return;const done=new Set(store.get(SY_PH,[]));
-  const ids=[...new Set((c.msgs||[]).flatMap(m=>m.role==='user'?m.content.filter(b=>b.type==='image'&&b.photo).map(b=>b.photo):[]))].filter(id=>!done.has(id));
+  const ids=[...new Set([...(c.msgs||[]).flatMap(m=>m.role==='user'?m.content.filter(b=>b.type==='image'&&b.photo).map(b=>b.photo):[]),...(c.parts||[]).map(p=>p.photo).filter(Boolean)])].filter(id=>!done.has(id));
   for(const id of ids){const v=await phLocal(id);if(!v)continue;
     const r=await syApi(`cases/${SY_AC}/photos/${id}.jpg`,{method:'PUT',body:JSON.stringify({message:`${SY_AC} photo ${id}`,content:v.data})});
     if(r.ok||r.status===422){done.add(id);store.set(SY_PH,[...done])}else throw new Error(syErr(r))}
