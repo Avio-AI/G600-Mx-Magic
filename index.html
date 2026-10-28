@@ -67,6 +67,9 @@ function fleetUi(){
     const P=F[k].prefix,last=rd(P+'_lastac');if(last&&String(last.reg||'').toUpperCase()===reg){try{localStorage.setItem(P+'_lastac_removed',JSON.stringify(last));localStorage.removeItem(P+'_lastac')}catch(e){}}}
   function undoRemove(k,reg){const h=hidden();if(h[k]){delete h[k][reg];setHidden(h)}
     const P=F[k].prefix,prev=rd(P+'_lastac_removed');if(prev&&String(prev.reg||'').toUpperCase()===reg&&!rd(P+'_lastac')){try{localStorage.setItem(P+'_lastac',JSON.stringify(prev))}catch(e){}}}
+  // aircraft types hidden from the picker on this device: {TYPE: time hidden}. Nothing is deleted (cases, settings and the data repo stay); Show hidden aircraft brings one back
+  const hidTypes=()=>rd('fleet_hidden_types')||{};
+  const setHidTypes=h=>{try{localStorage.setItem('fleet_hidden_types',JSON.stringify(h))}catch(e){}};
   const go=(k,reg,sn)=>{try{localStorage.setItem('fleet_ac',k);if(reg)localStorage.setItem(F[k].prefix+'_lastac',JSON.stringify({reg,sn:sn||''}))}catch(e){}
     const u=new URL(location.href);u.searchParams.delete('ac');location.replace(u.toString())};
   // aircraft picker in the top bar: tap the model name
@@ -81,6 +84,12 @@ function fleetUi(){
     .fleetlist .t{font-family:var(--display);font-weight:500;font-size:16px}
     .fleetlist .s{font-size:12.5px;color:var(--text-dim);margin-top:2px}
     .fleetlist .cur{margin-left:auto;color:var(--cyan)}
+    .fleetlist .acrm{margin-left:auto;border:none;background:none;color:var(--text-dim);width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
+    .fleetlist .acrm:hover{background:var(--hover);color:var(--text)}
+    .fleetlist .acrm .ms{font-size:20px}
+    .fleetlist.hid .row{opacity:.75}
+    .fleetlist .acadd{margin-left:auto;flex-shrink:0}
+    .fleetshow{display:block;margin:12px auto 0;border:none;background:none;color:var(--text-dim);font-family:var(--sans);font-size:13px;text-decoration:underline;cursor:pointer}
     .fleetlist .tails{display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 8px 56px}
     .fleetlist .tails .tc{display:inline-flex;align-items:stretch;border:1px solid var(--border2);border-radius:8px;overflow:hidden}
     .fleetlist .tails .tc button{font-family:var(--sans);font-weight:500;font-size:13px;border:none;background:none;color:var(--text);padding:4px 10px;cursor:pointer}
@@ -100,14 +109,20 @@ function fleetUi(){
       if(lg)lg.textContent=F[AC].name+(F[AC].melOnly?' MEL':' Troubleshooter');if(sh)sh.textContent=F[AC].name;
       [lg,sh].forEach(x=>x&&pick.appendChild(x));pick.insertAdjacentHTML('beforeend','<span class="ms">arrow_drop_down</span>');
       nameWrap.insertBefore(pick,nameWrap.firstChild);pick.onclick=()=>openFleet()}}
-  function openFleet(undo){
-    const rows=Object.keys(F).map(k=>{const t=[...tailsFor(k)];
-      return `<div class="row" data-ac="${k}"><span class="ico"><span class="ms">flight</span></span><div><div class="t">${esc(F[k].name)}</div><div class="s">${esc(F[k].full)}${t.length?' · '+t.length+' tail'+(t.length>1?'s':''):''}</div></div>${k===AC?'<span class="ms cur">check_circle</span>':''}</div>
-        ${t.length?`<div class="tails">${t.slice(0,12).map(([r,sn])=>`<span class="tc"><button data-ac="${k}" data-reg="${esc(r)}" data-sn="${esc(sn)}">${esc(r)}</button><button class="rm" data-ac="${k}" data-rm="${esc(r)}" title="Remove ${esc(r)} from this list" aria-label="Remove ${esc(r)} from this list"><span class="ms">close</span></button></span>`).join('')}</div>`:''}`}).join('');
-    showModal('Aircraft',`<div class="kv">Pick the aircraft type, or tap a tail number to open it with that registration filled in. Tap × to remove a tail from this list (its saved cases stay). Each type keeps its own manuals, settings and cases.</div><div class="fleetlist">${rows}</div>${undo?`<div class="fleetundo"><span>${esc(undo.reg)} removed from the ${esc(F[undo.k].name)} list.</span><button class="btn2 small" id="fleetUndo">Undo</button></div>`:''}`);
-    const ub=document.getElementById('fleetUndo');if(ub)ub.onclick=()=>{undoRemove(undo.k,undo.reg);openFleet()};
-    document.querySelectorAll('.fleetlist .tails .rm').forEach(b=>b.onclick=e=>{e.stopPropagation();removeTail(b.dataset.ac,b.dataset.rm);openFleet({k:b.dataset.ac,reg:b.dataset.rm})});
-    document.querySelectorAll('.fleetlist .row').forEach(el=>el.onclick=()=>{if(el.dataset.ac===AC){hideModal();return}go(el.dataset.ac)});
+  function openFleet(undo,showHid){
+    const H=hidTypes(),vis=Object.keys(F).filter(k=>k===AC||!H[k]),hid=Object.keys(F).filter(k=>k!==AC&&H[k]);
+    const row=k=>{const t=[...tailsFor(k)];
+      return `<div class="row" data-ac="${k}"><span class="ico"><span class="ms">flight</span></span><div><div class="t">${esc(F[k].name)}</div><div class="s">${esc(F[k].full)}${t.length?' · '+t.length+' tail'+(t.length>1?'s':''):''}</div></div>${k===AC?'<span class="ms cur">check_circle</span>':`<button class="acrm" data-hide="${k}" title="Hide ${esc(F[k].name)} from this list" aria-label="Hide ${esc(F[k].name)} from this list"><span class="ms">close</span></button>`}</div>
+        ${t.length?`<div class="tails">${t.slice(0,12).map(([r,sn])=>`<span class="tc"><button data-ac="${k}" data-reg="${esc(r)}" data-sn="${esc(sn)}">${esc(r)}</button><button class="rm" data-ac="${k}" data-rm="${esc(r)}" title="Remove ${esc(r)} from this list" aria-label="Remove ${esc(r)} from this list"><span class="ms">close</span></button></span>`).join('')}</div>`:''}`};
+    const hidRows=hid.map(k=>`<div class="row" data-show="${k}"><span class="ico"><span class="ms">flight</span></span><div><div class="t">${esc(F[k].name)}</div><div class="s">${esc(F[k].full)} · hidden</div></div><button class="btn2 small acadd" data-show="${k}">Show</button></div>`).join('');
+    const undoBar=undo?(undo.type?`<div class="fleetundo"><span>${esc(F[undo.k].name)} hidden from this list. Its cases and manuals are kept.</span><button class="btn2 small" id="fleetUndo">Undo</button></div>`:`<div class="fleetundo"><span>${esc(undo.reg)} removed from the ${esc(F[undo.k].name)} list.</span><button class="btn2 small" id="fleetUndo">Undo</button></div>`):'';
+    showModal('Aircraft',`<div class="kv">Pick the aircraft type, or tap a tail number to open it with that registration filled in. Tap × on a tail to remove it from this list, or × on an aircraft type to hide it. Nothing is deleted: saved cases, settings and manuals stay, and a hidden type can be shown again below.</div><div class="fleetlist">${vis.map(row).join('')}</div>${undoBar}${hid.length?(showHid?`<div class="kv" style="margin-top:12px">Hidden aircraft</div><div class="fleetlist hid">${hidRows}</div>`:`<button class="fleetshow" id="fleetShowHid">Show hidden aircraft (${hid.length})</button>`):''}`);
+    const ub=document.getElementById('fleetUndo');if(ub)ub.onclick=()=>{if(undo.type){const h=hidTypes();delete h[undo.k];setHidTypes(h)}else undoRemove(undo.k,undo.reg);openFleet(null,showHid)};
+    const sh=document.getElementById('fleetShowHid');if(sh)sh.onclick=()=>openFleet(null,true);
+    document.querySelectorAll('.fleetlist .acrm').forEach(b=>b.onclick=e=>{e.stopPropagation();const k=b.dataset.hide;if(k===AC)return;const h=hidTypes();h[k]=Date.now();setHidTypes(h);openFleet({k,type:true},showHid)});
+    document.querySelectorAll('.fleetlist [data-show]').forEach(el=>el.onclick=e=>{e.stopPropagation();const h=hidTypes();delete h[el.dataset.show];setHidTypes(h);openFleet(null,true)});
+    document.querySelectorAll('.fleetlist .tails .rm').forEach(b=>b.onclick=e=>{e.stopPropagation();removeTail(b.dataset.ac,b.dataset.rm);openFleet({k:b.dataset.ac,reg:b.dataset.rm},showHid)});
+    document.querySelectorAll('.fleetlist .row[data-ac]').forEach(el=>el.onclick=()=>{if(el.dataset.ac===AC){hideModal();return}go(el.dataset.ac)});
     document.querySelectorAll('.fleetlist .tails button[data-reg]').forEach(b=>b.onclick=()=>{
       if(b.dataset.ac===AC){hideModal();const r=document.getElementById('fReg'),s=document.getElementById('fSn');if(r){r.value=b.dataset.reg;r.dispatchEvent(new Event('input',{bubbles:true}))}if(s&&b.dataset.sn){s.value=b.dataset.sn}return}
       go(b.dataset.ac,b.dataset.reg,b.dataset.sn)});
