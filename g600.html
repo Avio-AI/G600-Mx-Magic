@@ -525,6 +525,7 @@ body.melonly #caseForm,body.melonly #searchPane,body.melonly #wiringPane{display
 @keyframes dictpulse{0%,100%{opacity:1}50%{opacity:.35}}
 .crow .chatmic{flex-shrink:0;align-self:flex-end;margin-bottom:2px}.chatmic[aria-pressed=true]{background:var(--red,#d93025);color:#fff;border-radius:50%}.chatmic[aria-pressed=true] .ms{animation:dictpulse 1.2s ease-in-out infinite}
 .qchip.techops{display:inline-flex;align-items:center;gap:4px;border-style:solid;font-weight:600}.qchip.techops .ms{font-size:15px}
+body.nowiring #wiringPane{display:none!important}body.nowiring.nw-show #moNote{display:block}
 </style>
 </head>
 <body>
@@ -1117,13 +1118,58 @@ Known gaps:`);
   {const sn=$('#fSn');if(sn)sn.placeholder=FC.snHint||sn.placeholder}
   {const ch=[...document.querySelectorAll('#intakeView .hint')].find(x=>/matched to the AMM \/ FSI pages/.test(x.textContent));if(ch)ch.textContent='Type the fault code or the maintenance message name from the CMC. Fault codes are decoded by structure (ATA, fault number, reporting unit) to direct the AMM search.'}
 }
+/* ═════════ G650 training library (fleet profile type:'gvi'): FlightSafety MTM + MSM, Misc Courses, ERC, MMEL / MOPP ═════════ */
+const GVI_TYPE=!!(FC&&!FC.melOnly&&FC.type==='gvi');
+if(GVI_TYPE){
+  MANS.splice(0,MANS.length,'MTM','MSM','ERC','REF','MMEL','MOPP');Object.assign(MW,{MTM:1.1,MSM:1,REF:.7});
+  for(const n of ['lookup_cmc','find_component','get_connector_pins','trace_wire']){const i=TOOLS.findIndex(t=>t.name===n);if(i>=0)TOOLS.splice(i,1)}
+  const T=n=>TOOLS.find(t=>t.name===n),set=(n,d,q)=>{const t=T(n);if(!t)return;if(d)t.description=d;if(q&&t.input_schema.properties[q[0]])t.input_schema.properties[q[0]].description=q[1]};
+  set('lookup_cas',`Look up ${FC.name} CAS messages listed in the FlightSafety G650 / G650ER MTM chapters (about 150 messages) and the MMEL CAS section. Returns message, color (red = warning, amber = caution, cyan = advisory, white = status), the ATA chapter, the MTM page that lists it and named_in: other MTM / MSM pages that name it. The MTM lists give no trigger logic: read the system description in that chapter. "L-R" means the message exists per side. Training data: confirm against the AMM.`,['query','Message words, e.g. "ACS Fail", "cool turbine hot", "bleed"']);
+  set('search_manuals','Keyword (BM25) search over page text, by ATA chapter: MTM (FlightSafety G650 / G650ER maintenance training manual by ATA chapter: system theory, components and locations, controls, indications, CAS messages, operation; plus the ICMS cabin management, Large Cabin Connectivity and NextGen / FANS 1/A courses), MSM ("msm": FlightSafety maintenance schematic manual), ERC (engine run checklist), REF (FAQs, flash cards, synoptic pages, flight deck panels). Returns ranked page snippets with doc_id, pdf_page and a citation string. Use specific technical terms, component names, CAS wording or ATA numbers. Specify ata_chapters whenever you know the system.',
+    ['ata_chapters','Two-digit ATA chapters, e.g. ["21","36"]. "msm" = maintenance schematic manual, "gen" = general / references. Omit to auto-select.']);
+  {const t=T('list_documents');if(t)t.description='List documents in the catalog filtered by ATA prefix (e.g. "21" or "36"), manual (MTM, MSM, ERC, REF, MMEL, MOPP) and/or title words.'}
+  {const t=T('lookup_mel');if(t)t.description=t.description.replace('GVII-G500/G600 MMEL (Rev 4)','GVI (G650 / G650ER) MMEL (Rev 6a)')}
+  {const t=T('read_pages');if(t)t.description='Read the full text of one or more consecutive pages of a document (doc_id from search / list results). Use to get complete system descriptions, logic, tables or schematic notes around a hit. Max 4 pages per call.'}
+  const _sp=systemPrompt;systemPrompt=function(){
+    const m=DATA.manifest||{},rev=m.revisions||{};let p=_sp();
+    p=p.replace('You are a senior Gulfstream G600 (GVII-G600) troubleshooting specialist','You are a senior Gulfstream G650 / G650ER (GVI) troubleshooting specialist');
+    p=p.replace(/# Your library \(searchable through tools\)\n[\s\S]*?\nKnown gaps:/,`# Your library (searchable through tools)
+Aircraft: ${m.aircraft||'Gulfstream G650 / G650ER (GVI)'}. This is a TRAINING library: there is no G650 AMM, FIM, IPC or wiring data loaded yet.
+- MTM (${rev.MTM||''}): FlightSafety G650 / G650ER maintenance training manual by ATA chapter (cite "MTM <chapter> p<page>"): system theory, components and locations, controls and indications, CAS message lists, operation. Also the ICMS (cabin management), GLCC (large cabin connectivity) and NextGen / FANS 1/A courses (cite "MTM ICMS p…", "MTM GLCC p…", "MTM NextGen p…").
+- MSM (${rev.MSM||''}): FlightSafety maintenance schematic manual (simplified system schematics).
+- ERC: G650 maintenance engine run checklist. REF: FAQs, memory flash cards, synoptic pages, flight deck panels.
+- MMEL (${rev.MMEL||''}) and Gulfstream MOPP (${rev.MOPP||''}): dispatch relief with inoperative items (Section 1 items, Section 2 CAS messages), repair categories, and the (M) maintenance, (O) operational and placarding procedures. Use lookup_mel. The operator's own approved MEL governs.
+Everything except the MMEL / MOPP is training material: use it for system logic and likely causes, and say that procedures, limits, part numbers, task numbers and wiring must come from the current AMM, FIM, IPC and WDM.
+Known gaps:`);
+    p=p.replace(/For every CMC maintenance message or fault code given, call lookup_cmc:[^\n]*/,'For a CMC maintenance message or fault code, decode it by structure (CCSSNNN + reporting unit = ATA, fault number, reporting unit) and search the MTM chapter for the reporting unit. There is no G650 FIM, AMM or wiring data in this library: build fault isolation from the MTM system logic and schematics, and say which AMM / FIM / WDM data the technician must pull for the procedure and the wiring.');
+    p=p.replace('read the SDM chapter (and FSI chapter) for how the message is generated:','read the MTM chapter (and the MSM schematic) for how the message is generated:');
+    p=p.replace(/For wiring checks, use find_component, get_connector_pins and trace_wire[^.]*\./,'There is no wiring data here: describe wiring checks at the level the MTM / MSM support (which LRU, connector and signal) and tell the technician to take pins and wire numbers from the WDM.');
+    p=p.replace(/the corrective action \(the AMM Removal \/ Installation module\) and the required operational test \/ functional check after repair \(the matching AMM module\)/,'the corrective action and the required operational test / functional check after repair (to be done IAW the current AMM, which is not in this library)');
+    p=p.replace(/8\. Use the AMM general maintenance modules[^\n]*/,'8. For power-up, SSPC / circuit breaker control, safe-ground setup, part numbers and wire repair, point the technician to the AMM, IPC and SWPM (not in this library).');
+    p=p.replace(/e\.g\. \[AMM 21-61-03-280B p2\][^.]*\./,'e.g. [MTM 21 p57], [MSM p12], [MTM ICMS p40], [MMEL 21-1].');
+    p=p.replace(/- FSI is training material \(chapter revisions 0\.1–0\.9\): confirm FSI logic against the SDM\/AMM when it matters, and flag differences\. [^\n]*/,'- The MTM and MSM are FlightSafety training material: confirm logic against the AMM when it matters, and flag that the AMM governs.');
+    p=p.replace('### References — the key documents (SDM/AMM/iWDM/IPC) for this fault.','### References — the key MTM / MSM pages, and the AMM / FIM / WDM data to pull.');
+    return p};
+  const _rb=renderBadges;renderBadges=function(err){_rb(err);if(err)return;const b=$('#badges');if(!b)return;
+    b.innerHTML=`<span class="badge amber">${DATA.catalog.length.toLocaleString()} DOCS</span><span class="badge">FSI MTM · MSM</span><span class="badge">${DATA.faults.length} CAS</span><span class="badge">ICMS · GLCC · NEXTGEN</span><span class="badge">MEL</span>`;renderAiBadge()};
+  document.title=`${FC.name} Troubleshooter`;
+  {const h=$('#faultHint');if(h)h.textContent=`Searches the CAS messages listed in the ${FC.name} FlightSafety MTM chapters (with color). Add every message that's showing, not just the first.`}
+  {const d=document.querySelector('#intakeView .disclaimer');if(d)d.textContent=`Troubleshooting aid only. It reasons from the ${FC.name} FlightSafety training library (MTM, MSM, ICMS, GLCC, NextGen) and the MMEL / MOPP, and cites pages. There is no ${FC.name} AMM, FIM, IPC or wiring data in this library yet: the current AMM / FIM / WDM govern every procedure, limit and return-to-service decision.`}
+  {const sn=$('#fSn');if(sn)sn.placeholder=FC.snHint||sn.placeholder}
+  {const ch=[...document.querySelectorAll('#intakeView .hint')].find(x=>/matched to the AMM \/ FSI pages/.test(x.textContent));if(ch)ch.textContent='Type the fault code or the maintenance message name from the CMC. Fault codes are decoded by structure (ATA, fault number, reporting unit) to direct the MTM search.'}
+  // no wiring data: the Wiring tab explains it (the MEL-only notice card)
+  document.body.classList.add('nowiring');
+  const wn=k=>{document.body.classList.toggle('nw-show',k==='wiring');if(k==='wiring'){const t=$('#moText');if(t)t.innerHTML=`The ${esc(FC.name)} wiring diagrams aren't loaded yet, so wiring lookup isn't available. Describe, Search and MEL work from the FlightSafety training library and the MMEL.`;const g=$('#moGo');if(g)g.textContent='Go to MEL'}};
+  document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>wn(t.dataset.tab)));
+  {const g=$('#moGo');if(g)g.addEventListener('click',()=>{const m=document.querySelector('.tab[data-tab=mel]');if(m)m.click()})}
+}
 async function runTool(name,input){
   try{
     if(WSET_P)await WSET_P;
     if(!DATA.ready)throw new Error('Manual data is not loaded. Check Settings.');
     if(name==='lookup_cas'||name==='lookup_fault'){
       const r=searchFaults(input.query||'',15);r.forEach(f=>registerSource({cite:f.cite,doc_id:f.doc,pdf_page:f.page}));
-      return {summary:`${r.length} match${r.length===1?'':'es'}`,data:{matches:r.map(f=>({message:f.msg,color:f.color||'(not stated)',trigger_logic:f.cause||(G8_TYPE?'(the CAS list gives color only: read the named_in pages and the system description)':'(listed without a cause in the FSI; search SDM/FSI for the logic)'),ata_chapter:f.ata||undefined,fsi_table:f.table||undefined,cite:f.cite,doc_id:f.doc,pdf_page:f.page,named_in:(f.refs||[]).length?f.refs.map(x=>{registerSource({cite:x[2],doc_id:x[0],pdf_page:x[1]});return {cite:x[2],doc_id:x[0],pdf_page:x[1]}}):undefined}))}};
+      return {summary:`${r.length} match${r.length===1?'':'es'}`,data:{matches:r.map(f=>({message:f.msg,color:f.color||'(not stated)',trigger_logic:f.cause||(G8_TYPE?'(the CAS list gives color only: read the named_in pages and the system description)':GVI_TYPE?'(the MTM list gives color only: read the system description in that chapter and the named_in pages)':'(listed without a cause in the FSI; search SDM/FSI for the logic)'),ata_chapter:f.ata||undefined,fsi_table:f.table||undefined,cite:f.cite,doc_id:f.doc,pdf_page:f.page,named_in:(f.refs||[]).length?f.refs.map(x=>{registerSource({cite:x[2],doc_id:x[0],pdf_page:x[1]});return {cite:x[2],doc_id:x[0],pdf_page:x[1]}}):undefined}))}};
     }
     if(name==='lookup_cmc'){
       const r=searchCmc(input.query||'',12);r.forEach(x=>(x.refs||[]).forEach(f=>registerSource({cite:f[2],doc_id:f[0],pdf_page:f[1]})));
@@ -2834,7 +2880,7 @@ const tc=s=>String(s).toLowerCase().replace(/[a-z0-9]+(?:'[a-z]+)?/g,w=>ACR.has(
 function fillChapterSelect(){
   const names={};
   for(const d of DATA.catalog)if(d.m==='SDM'&&d.ata&&/-00-00$/.test(d.ata)){const t=d.title.split('—')[0].trim();if(t&&!names[d.ata.slice(0,2)])names[d.ata.slice(0,2)]=tc(t)}
-  $('#sChap').innerHTML='<option value="">Auto (Best Match)</option>'+Object.keys(DATA.manifest.shards).sort().map(k=>`<option value="${k}">${k==='fsi'?'FSI Overview Books (Avionics, Synoptics, EER, Schematics)':k==='gen'?'General / Front Matter / CB List':k==='mel'?'MMEL / MOPP (Dispatch Relief)':'ATA '+k+(names[k]?' — '+esc(names[k]):'')}</option>`).join('');
+  $('#sChap').innerHTML='<option value="">Auto (Best Match)</option>'+Object.keys(DATA.manifest.shards).sort().map(k=>`<option value="${k}">${k==='fsi'?'FSI Overview Books (Avionics, Synoptics, EER, Schematics)':k==='gen'?'General / Front Matter / CB List':k==='mel'?'MMEL / MOPP (Dispatch Relief)':k==='msm'?'MSM — Maintenance Schematic Manual':'ATA '+k+(names[k]?' — '+esc(names[k]):'')}</option>`).join('');
   $('#sManuals').innerHTML=MANS.map(m=>`<label><input type="checkbox" value="${m}" checked> ${m}</label>`).join('');
 }
 async function doSearch(){
