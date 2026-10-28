@@ -719,8 +719,8 @@ const store={
 let cfg={...DEFAULTS,...store.get(PFX+'_cfg',{})};
 if(FC){if(!store.get(PFX+'_cfg',null)){const g=store.get('g600ts_cfg',{});for(const k of ['anthropicKey','githubToken','model','thinking','remember','theme','melOps'])if(g[k]!=null)cfg[k]=g[k]}
   Object.assign(cfg,{dataMode:'github',dataRepo:FC.dataRepo,dataBranch:FC.dataBranch||'main'});
-  if(FC.melOnly||FC.sharedToken){const t=store.get('mxm_meltoken','');if(t)cfg.githubToken=t}}  // one MEL-data token shared by every MEL-only aircraft
-function saveCfg(){store.set(PFX+'_cfg',cfg,cfg.remember);if(FC&&(FC.melOnly||FC.sharedToken)&&cfg.githubToken)store.set('mxm_meltoken',cfg.githubToken,cfg.remember)}
+  if(FC.sharedToken){const t=store.get('mxm_meltoken','');if(t)cfg.githubToken=t}}  // each aircraft repo has its own token; sharedToken profiles share one
+function saveCfg(){store.set(PFX+'_cfg',cfg,cfg.remember);if(FC&&FC.sharedToken&&cfg.githubToken)store.set('mxm_meltoken',cfg.githubToken,cfg.remember)}
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 // all dates: 21 OCT 2026
 const MONS=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
