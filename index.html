@@ -30,8 +30,8 @@ const FLEET={
   G600:{name:'G600',full:'Gulfstream G600 (GVII-G600)',src:'/G600-Mx-Magic/g600.html',prefix:'g600ts'},
   G700:{name:'G700',full:'Gulfstream G700 (GVIII) · MEL only',src:'/G600-Mx-Magic/g600.html',prefix:'g700ts',melOnly:true,
     cfg:{name:'G700',prefix:'g700ts',dataRepo:'Avio-AI/Gulfstream-MEL-Data',dataPath:'g700/',localRoot:'C:\\Gulfstream PDFs\\G700\\',melOnly:true}},
-  G800:{name:'G800',full:'Gulfstream G800 (GVIII) · MEL only',src:'/G600-Mx-Magic/g600.html',prefix:'g800ts',melOnly:true,
-    cfg:{name:'G800',prefix:'g800ts',dataRepo:'Avio-AI/Gulfstream-MEL-Data',dataPath:'g700/',localRoot:'C:\\Gulfstream PDFs\\G800\\',melOnly:true}}
+  G800:{name:'G800',full:'Gulfstream G800 (GVIII-G800)',src:'/G600-Mx-Magic/g600.html',prefix:'g800ts',
+    cfg:{name:'G800',prefix:'g800ts',type:'gviii',dataRepo:'Avio-AI/Gulfstream-MEL-Data',dataPath:'g800/',localRoot:'C:\\Gulfstream PDFs\\G800\\',sharedToken:true,snHint:'880xx',iwdmRev:'Rev 2',iwdmDefault:'88045–88059',xrefTo:'61P'}}
 };
 (function(){
   const q=new URLSearchParams(location.search);

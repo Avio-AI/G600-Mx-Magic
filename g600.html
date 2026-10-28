@@ -718,8 +718,8 @@ const store={
 let cfg={...DEFAULTS,...store.get(PFX+'_cfg',{})};
 if(FC){if(!store.get(PFX+'_cfg',null)){const g=store.get('g600ts_cfg',{});for(const k of ['anthropicKey','githubToken','model','thinking','remember','theme','melOps'])if(g[k]!=null)cfg[k]=g[k]}
   Object.assign(cfg,{dataMode:'github',dataRepo:FC.dataRepo,dataBranch:FC.dataBranch||'main'});
-  if(FC.melOnly){const t=store.get('mxm_meltoken','');if(t)cfg.githubToken=t}}  // one MEL-data token shared by every MEL-only aircraft
-function saveCfg(){store.set(PFX+'_cfg',cfg,cfg.remember);if(FC&&FC.melOnly&&cfg.githubToken)store.set('mxm_meltoken',cfg.githubToken,cfg.remember)}
+  if(FC.melOnly||FC.sharedToken){const t=store.get('mxm_meltoken','');if(t)cfg.githubToken=t}}  // one MEL-data token shared by every MEL-only aircraft
+function saveCfg(){store.set(PFX+'_cfg',cfg,cfg.remember);if(FC&&(FC.melOnly||FC.sharedToken)&&cfg.githubToken)store.set('mxm_meltoken',cfg.githubToken,cfg.remember)}
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 // all dates: 21 OCT 2026
 const MONS=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
@@ -832,17 +832,18 @@ function applyWiringSet(sn){
   WSET_P=p;wsetHint();return p;
 }
 const rng=s=>s.from===s.to?`${s.from}`:`${s.from}–${s.to}`;
+const IW_REV=(FC&&FC.iwdmRev)||'R4',IW_DEF=(FC&&FC.iwdmDefault)||'73100–73114';
 function wsetHint(err){const h=$('#wHint');if(!h)return;
   const has=(DATA.manifest?.wiring?.sets||[]).length;
   h.innerHTML=err?`<span style="color:var(--red)">${esc(err)}</span>`:WSET_P&&!WSET?'Loading the wiring set for this S/N…':
-    WSET?`G600 iWDM R4 for <b>s/n ${rng(WSET)}</b>${WSET_SN?` (aircraft S/N ${esc(WSET_SN)})`:''}. Tap a diagram to open the schematic. No AI or API key needed.`:
-    has&&WSET_SN?`<b>S/N ${esc(WSET_SN)}</b> is not in any iWDM package in your library, so the s/n 73100–73114 package is shown. Verify against the iWDM for this serial.`:
-    has?'Enter the aircraft serial number on the Describe tab to use its own iWDM package (showing s/n 73100–73114). Tap a diagram to open the schematic.':
-    'From the G600 iWDM. Tap a diagram to open the schematic. No AI or API key needed.'}
+    WSET?`${APPNAME} iWDM ${IW_REV} for <b>s/n ${rng(WSET)}</b>${WSET_SN?` (aircraft S/N ${esc(WSET_SN)})`:''}. Tap a diagram to open the schematic. No AI or API key needed.`:
+    has&&WSET_SN?`<b>S/N ${esc(WSET_SN)}</b> is not in any iWDM package in your library, so the s/n ${IW_DEF} package is shown. Verify against the iWDM for this serial.`:
+    has?`Enter the aircraft serial number on the Describe tab to use its own iWDM package (showing s/n ${IW_DEF}). Tap a diagram to open the schematic.`:
+    `From the ${APPNAME} iWDM. Tap a diagram to open the schematic. No AI or API key needed.`}
 function wsetPromptLine(){
-  if(WSET)return `The wiring data loaded (iWDM tools and wiring sheets) is the iWDM R4 package for s/n ${rng(WSET)}, which covers this aircraft (S/N ${WSET_SN}). Cite wiring as usual; it is effective for this serial.`;
-  if((DATA.manifest?.wiring?.sets||[]).length)return `No aircraft serial number in the iWDM library's range is set${WSET_SN?` (S/N ${WSET_SN})`:''}, so the wiring data is the iWDM package for s/n 73100–73114: say the wiring must be verified against the iWDM for the aircraft's serial, and ask for the S/N if it is missing.`;
-  return 'The iWDM package is effective for s/n 73100–73114: if the aircraft serial is outside that range, say the wiring must be verified against the iWDM for that serial.';
+  if(WSET)return `The wiring data loaded (iWDM tools and wiring sheets) is the iWDM ${IW_REV} package for s/n ${rng(WSET)}, which covers this aircraft (S/N ${WSET_SN}). Cite wiring as usual; it is effective for this serial.`;
+  if((DATA.manifest?.wiring?.sets||[]).length)return `No aircraft serial number in the iWDM library's range is set${WSET_SN?` (S/N ${WSET_SN})`:''}, so the wiring data is the iWDM package for s/n ${IW_DEF}: say the wiring must be verified against the iWDM for the aircraft's serial, and ask for the S/N if it is missing.`;
+  return `The iWDM package is effective for s/n ${IW_DEF}: if the aircraft serial is outside that range, say the wiring must be verified against the iWDM for that serial.`;
 }
 function diagRef(sys,dia){
   const d=DATA.wsys.get(sys);if(!d)return {system:sys,sheet:dia};
@@ -946,7 +947,7 @@ function searchShard(sh,q,manuals){
   }
   return out;
 }
-const MW={AMM:1.15,SDM:1.1,iWDM:1,IPC:.85,FSI:1,SWPM:.8,ERC:.9,MMEL:1,MOPP:1};
+const MW={AMM:1.15,SDM:1.1,iWDM:1,IPC:.85,FSI:1,SWPM:.8,ERC:.9,EWIS:.7,MMEL:1,MOPP:1};
 function guessChapters(q,n=3){
   const terms=qtok(q);const sc=new Map();
   const add=(k,v)=>sc.set(k,(sc.get(k)||0)+v);
@@ -1073,13 +1074,56 @@ const TOOLS=[
  {name:'trace_wire',description:'Trace a wire number through all iWDM connector pin tables: returns every connector-pin to connector-pin segment carrying that wire (prefix match, e.g. "1H322" finds 1H322A22, 1H322B22…), so you can follow a circuit through inlines and splices end to end.',
   input_schema:{type:'object',properties:{wire:{type:'string'}},required:['wire']}}
 ];
+/* ═════════ GVIII-G800 full library (fleet profile type:'gviii'): the same engine with the G800 manual set ═════════
+   AMM (GAC700 / GAC800, Pearl 700 engine, RE220 APU), iWDM Rev 2 serial sets, SWPM, EWIS ICA, ERC, MMEL / MOPP; CAS list from the AMM.
+   No FIM, SDM, IPC or training manual yet. */
+const G8_TYPE=!!(FC&&!FC.melOnly&&FC.type==='gviii');
+if(G8_TYPE){
+  MANS.splice(0,MANS.length,'AMM','iWDM','SWPM','EWIS','ERC','MMEL','MOPP');
+  const T=n=>TOOLS.find(t=>t.name===n),set=(n,d,q)=>{const t=T(n);if(!t)return;if(d)t.description=d;if(q&&t.input_schema.properties[q[0]])t.input_schema.properties[q[0]].description=q[1]};
+  set('lookup_cas',`Look up ${FC.name} CAS messages in the AMM CAS message list (AMM 00-00-00-00EC, about 1,690 messages). Returns message, color (red = warning, amber = caution, cyan = advisory, white = status), the ATA chapter where the AMM names it, and named_in: the AMM pages that name the message (system descriptions, operational / functional tests). The list gives no trigger logic: read the named_in pages and the system description for it. "L-R" means the message exists per side; (U) marks an unannunciated message.`,['query','Message words, e.g. "pack fail", "ADS 1 Fail", "bleed"']);
+  set('lookup_cmc','Decode a CMC maintenance message or fault code by structure: a fault code is CCSSNNN + reporting unit (ATA, fault number, reporting unit); a message name starts with the reporting unit. There is no G800 CMC message index in this library yet: use the ATA and reporting unit to direct AMM searches.');
+  set('search_manuals','Keyword (BM25) search over page text, by ATA chapter: AMM (S1000D data modules: system descriptions, servicing, inspections, operational / functional tests, removal / installation, general maintenance incl. SSPC control; Pearl 700 engine and RE220 APU modules; the CAS message list is in "gen"), iWDM (wiring diagram sheets: designators, wire numbers, sheet text), SWPM (standard wiring practices), EWIS (EWIS instructions for continued airworthiness), ERC (engine run checklist). Returns ranked page snippets with doc_id, pdf_page and a citation string. Use specific technical terms, component names, reference designators (e.g. 001L1), CAS wording or ATA numbers. Specify ata_chapters whenever you know the system. Run several focused searches rather than one vague one.',
+    ['ata_chapters','Two-digit ATA chapters, e.g. ["21","36"]. "gen" = general / front matter (incl. the CAS message list). Omit to auto-select.']);
+  set('find_component',`Find wiring components in the ${FC.name} iWDM by reference designator, part number, harness or description words: devices / LRUs (e.g. 001L1 ANTI-ICE VALVE), connectors (001L1P1), inline connectors, splices, grounds. Returns type, P/N, harness, ATA and the wiring diagram sheets it appears on (with citations openable as schematics).`,['query','e.g. "001L1", "ACC", "MS3456", "ANTI-ICE VALVE"']);
+  set('get_connector_pins','Get the iWDM pin-out of a connector or inline: for each cavity the signal, wire number (e.g. H125C20-4 = 20 AWG), wire P/N, color, and the mating far-end connector and pin. Use to say exactly which pins / wires to meter and where the other end goes.',['connector','Exact designator, e.g. "001L1P1"']);
+  {const t=T('lookup_mel');if(t)t.description=t.description.replace('GVII-G500/G600 MMEL (Rev 4)','GVIII-G700/G800 MMEL (Rev 3)')}
+  {const t=T('trace_wire');if(t)t.description=t.description.replace(/e\.g\. "1H322"[^)]*\)/,'e.g. "H125C20" finds H125C20-4…)')}
+  // system prompt: the G800 library and method in place of the G600 SDM / FSI / IPC lines
+  const _sp=systemPrompt;systemPrompt=function(){
+    const m=DATA.manifest||{},rev=m.revisions||{};let p=_sp();
+    p=p.replace('You are a senior Gulfstream G600 (GVII-G600) troubleshooting specialist','You are a senior Gulfstream G800 (GVIII-G800) troubleshooting specialist');
+    p=p.replace(/# Your library \(searchable through tools\)\n[\s\S]*?\nKnown gaps:/,`# Your library (searchable through tools)
+Aircraft: ${m.aircraft||'Gulfstream G800 (GVIII-G800)'}. The G800 shares the GVIII platform with the G700; many data modules are coded GAC700 and apply to both, GAC800 modules are G800-specific (cited with "(G800)" when both exist).
+- AMM (${rev.AMM||''}): S1000D data modules, cited as "AMM <ATA>-<info code>", e.g. AMM 21-51-02-520A. The task type is in each module's title (Description, Removal / Installation, Operational Test, Functional Check, Detailed Inspection, General Maintenance, e.g. SSPC control); info codes vary, so go by the title. Rolls-Royce Pearl 700 engine modules carry "Pearl 700", Honeywell RE220 APU modules carry "RE220". The CAS message list is AMM 00-00-00-00EC.
+- iWDM (${rev.iWDM||''}): interactive wiring data. Wiring systems with diagram sheets (cite "iWDM <system> sh <sheet>"), every device / connector / splice / ground with P/N and harness, and full connector pin-outs (cavity → signal → wire → far-end pin / connector).
+- SWPM (${rev.SWPM||''}): GVIII standard wiring practices (repair, crimp, splice, shield, bonding, EWIS maintenance). EWIS: ${rev.EWIS||'EWIS ICA'}.
+- ERC: G700 / G800 engine / APU ground run checklist.
+- MMEL (${rev.MMEL||''}) and Gulfstream MOPP (${rev.MOPP||''}): dispatch relief with inoperative items (Section 1 items, Section 2 CAS messages), repair categories, and the (M) maintenance, (O) operational and placarding procedures. Use lookup_mel. The operator's own approved MEL governs.
+Known gaps:`);
+    p=p.replace(/read the AMM \/ FSI pages that name it\. There is no G600 FIM:[^\n]*/,'read the AMM pages that name it. There is no G800 FIM, System Description Manual or training manual in this library: lookup_cas gives the color and the AMM pages that name the message; build fault isolation from the AMM system description modules (theory, components, controls and indications), the monitoring source (which RDC / DCN node, controller or sensor sets the message), and the iWDM wiring.');
+    p=p.replace('read the SDM chapter (and FSI chapter) for how the message is generated:','read the AMM system description modules for the chapter (and the pages lookup_cas names) for how the message is generated:');
+    p=p.replace('IPC for part numbers when replacement is likely;','there is no G800 IPC in this library yet, so give part numbers only from the iWDM component data and say the IPC must confirm them;');
+    p=p.replace(/e\.g\. \[AMM 21-61-03-280B p2\][^.]*\./,'e.g. [AMM 21-51-02-520A p2], [AMM 00-00-00-00EC p3], [iWDM 61P2120006J_TP sh 3.000], [iWDM 001L1P1 pin-out].');
+    p=p.replace(/- FSI is training material \(chapter revisions 0\.1–0\.9\): confirm FSI logic against the SDM\/AMM when it matters, and flag differences\. /,'- ');
+    p=p.replace('### References — the key documents (SDM/AMM/iWDM/IPC) for this fault.','### References — the key documents (AMM/iWDM/SWPM) for this fault.');
+    return p};
+  const _rb=renderBadges;renderBadges=function(err){_rb(err);if(err)return;const b=$('#badges');if(!b)return;
+    const amm=(DATA.manifest.revisions.AMM||'').match(/(\w+) \d+\/(\d\d)/);
+    b.innerHTML=`<span class="badge amber">${DATA.catalog.length.toLocaleString()} DOCS</span><span class="badge">AMM ${amm?esc(amm[1].slice(0,3).toUpperCase()+' '+amm[2]):''}</span><span class="badge">iWDM ${esc(IW_REV.toUpperCase())}</span><span class="badge">${DATA.faults.length} CAS</span><span class="badge">SWPM · EWIS · ERC</span>`;renderAiBadge()};
+  document.title=`${FC.name} Troubleshooter`;
+  {const h=$('#faultHint');if(h)h.textContent=`Searches the ${FC.name} CAS message list (AMM, with color) and the AMM pages that name each message. Add every message that's showing, not just the first.`}
+  {const d=document.querySelector('#intakeView .disclaimer');if(d)d.textContent=`Troubleshooting aid only. It reasons from the indexed ${FC.name} manuals (AMM, iWDM, SWPM, EWIS, ERC, MMEL / MOPP) and cites pages. There is no ${FC.name} FIM, SDM or IPC in this library yet. The current revision of the approved maintenance data governs all maintenance and return-to-service decisions.`}
+  {const sn=$('#fSn');if(sn)sn.placeholder=FC.snHint||sn.placeholder}
+  {const ch=[...document.querySelectorAll('#intakeView .hint')].find(x=>/matched to the AMM \/ FSI pages/.test(x.textContent));if(ch)ch.textContent='Type the fault code or the maintenance message name from the CMC. Fault codes are decoded by structure (ATA, fault number, reporting unit) to direct the AMM search.'}
+}
 async function runTool(name,input){
   try{
     if(WSET_P)await WSET_P;
     if(!DATA.ready)throw new Error('Manual data is not loaded. Check Settings.');
     if(name==='lookup_cas'||name==='lookup_fault'){
       const r=searchFaults(input.query||'',15);r.forEach(f=>registerSource({cite:f.cite,doc_id:f.doc,pdf_page:f.page}));
-      return {summary:`${r.length} match${r.length===1?'':'es'}`,data:{matches:r.map(f=>({message:f.msg,color:f.color||'(not stated)',trigger_logic:f.cause||'(listed without a cause in the FSI; search SDM/FSI for the logic)',ata_chapter:f.ata,fsi_table:f.table||undefined,cite:f.cite,doc_id:f.doc,pdf_page:f.page}))}};
+      return {summary:`${r.length} match${r.length===1?'':'es'}`,data:{matches:r.map(f=>({message:f.msg,color:f.color||'(not stated)',trigger_logic:f.cause||(G8_TYPE?'(the CAS list gives color only: read the named_in pages and the system description)':'(listed without a cause in the FSI; search SDM/FSI for the logic)'),ata_chapter:f.ata||undefined,fsi_table:f.table||undefined,cite:f.cite,doc_id:f.doc,pdf_page:f.page,named_in:(f.refs||[]).length?f.refs.map(x=>{registerSource({cite:x[2],doc_id:x[0],pdf_page:x[1]});return {cite:x[2],doc_id:x[0],pdf_page:x[1]}}):undefined}))}};
     }
     if(name==='lookup_cmc'){
       const r=searchCmc(input.query||'',12);r.forEach(x=>(x.refs||[]).forEach(f=>registerSource({cite:f[2],doc_id:f[0],pdf_page:f[1]})));
@@ -1292,7 +1336,7 @@ function fixDanglingToolUse(){
 }
 
 /* ═════════════════ RENDERING ═════════════════ */
-const CITE_RX=/\[((?:AMM|SDM|FSI|iWDM|IPC|SWPM|ERC)\b[^\]\n]{1,80})\]/g;
+const CITE_RX=/\[((?:AMM|SDM|FSI|iWDM|IPC|SWPM|ERC|EWIS)\b[^\]\n]{1,80})\]/g;
 function inlineMd(s){
   s=esc(s);
   s=s.replace(/`([^`]+)`/g,'<code>$1</code>').replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>').replace(/(^|[^*])\*([^*\s][^*]*)\*/g,'$1<em>$2</em>');
@@ -1522,11 +1566,12 @@ function renderRecentTab(){
   w.innerHTML=`<select class="recent" id="wRecent">${recentOptions()}</select>`;
   document.getElementById('wRecent').onchange=e=>{if(e.target.value!=='')openRecent(e.target.value,false);e.target.value=''};
 }
-const RX_DWG=/\bSEE\s+(\d\dP\d{6,8}[A-Z]?)(?:\s+SH(?:EE)?T\.?\s*([\d.]+))?/i, RX_SHT=/\bSEE\s+(?:SHT|SHEET)\.?\s*([\d.]+)/i, RX_ATA=/\b(\d\d-\d\d-\d\d)\b/;
+const XREF_TO=(FC&&FC.xrefTo)||'73P';
+const RX_DWG=/\bSEE\s+(\d\dP\d{6,8}[A-Z]?)(?:\)?\s+SH(?:EE)?T\.?\s*([\d.]+))?/i, RX_SHT=/\bSEE\s+(?:SHT|SHEET)\.?\s*([\d.]+)/i, RX_ATA=/\b(\d\d-\d\d-\d\d)\b/;
 function resolveDrawing(num){
   const N=num.toUpperCase(),keys=[...DATA.wsys.keys()];
   const tryN=n=>keys.find(k=>k===n+'_TP')||keys.find(k=>k.startsWith(n+'_'))||keys.find(k=>k.startsWith(n));
-  return DATA.wsys.get(tryN(N)||(N.startsWith('72P')&&tryN('73P'+N.slice(3)))||tryN(N.replace(/[A-Z]$/,''))||(N.startsWith('72P')&&tryN('73P'+N.slice(3).replace(/[A-Z]$/,'')))||'')||null;
+  return DATA.wsys.get(tryN(N)||(N.startsWith('72P')&&tryN(XREF_TO+N.slice(3)))||tryN(N.replace(/[A-Z]$/,''))||(N.startsWith('72P')&&tryN(XREF_TO+N.slice(3).replace(/[A-Z]$/,'')))||'')||null;
 }
 const xmlEsc=t=>t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 function contextTerms(g,skip){
@@ -1866,7 +1911,7 @@ function collectForm(){
 }
 function caseText(f){
   const L=['NEW TROUBLESHOOTING CASE'];
-  if(f.reg||f.sn)L.push(`Aircraft: G600${f.reg?' '+f.reg:''}${f.sn?' s/n '+f.sn:''}`);
+  if(f.reg||f.sn)L.push(`Aircraft: ${APPNAME}${f.reg?' '+f.reg:''}${f.sn?' s/n '+f.sn:''}`);
   if(f.apt)L.push(`Airport: ${f.apt}`);
   {const tl=timesLine(f);if(tl)L.push(`Times: ${tl}`)}
   if(f.faults.length){L.push('CAS messages:');f.faults.forEach(x=>L.push(`  • ${x.msg}${x.color?` (${x.color})`:''}${x.ata?` — ATA ${x.ata}`:''}${x.cause?` — FSI logic: ${x.cause} [${x.cite}]`:''}${x.custom?' (typed; not matched in CAS tables)':''}`))}
@@ -1942,7 +1987,7 @@ $('#btnCases').onclick=()=>{
   $$('.caselist [data-del]').forEach(b=>b.onclick=()=>{const cs=loadCases().filter(c=>c.id!==b.dataset.del);try{localStorage.setItem(PFX+'_cases',JSON.stringify(cs))}catch(e){}if(CASE&&CASE.id===b.dataset.del){CASE=null;showIntake()}$('#btnCases').onclick()});
 };
 $('#btnNew').onclick=()=>{if(BUSY)ABORT?.abort();CASE=null;try{localStorage.removeItem(PFX+'_current')}catch(e){}resetForm();showIntake()};
-const APPNAME=(FC&&FC.name)||'G600',SN_HINT='731xx',LAST_AC_KEY=PFX+'_lastac';
+const APPNAME=(FC&&FC.name)||'G600',SN_HINT=(FC&&FC.snHint)||'731xx',LAST_AC_KEY=PFX+'_lastac';
 function prefillAircraft(){const l=store.get(LAST_AC_KEY,null);if(l){if(!$('#fReg').value)$('#fReg').value=l.reg||'';if(!$('#fSn').value)$('#fSn').value=l.sn||''}}
 prefillAircraft();
 /* ═════════════════ CASE SYNC (private GitHub repo: the same case history on every device) ═════════════════ */
@@ -2316,7 +2361,7 @@ document.addEventListener('scroll',()=>{const a=document.activeElement;if(a&&a.c
   window.addEventListener('resize',fitAppHeight);window.addEventListener('orientationchange',()=>setTimeout(fitAppHeight,300));
   window.addEventListener('pageshow',fitAppHeight);document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(fitAppHeight,50)});
   // the Search tab's query box lives in the top bar's search pill (shown on the Search tab only)
-  const g=$('#gSearch'),q=$('#sQuery');if(g&&q){const fld=q.closest('.field');q.placeholder='Search the G600 manuals';g.appendChild(q);if(fld&&!fld.children.length)fld.remove();g.onclick=e=>{if(e.target!==q)q.focus()}}
+  const g=$('#gSearch'),q=$('#sQuery');if(g&&q){const fld=q.closest('.field');q.placeholder=`Search the ${APPNAME} manuals`;g.appendChild(q);if(fld&&!fld.children.length)fld.remove();g.onclick=e=>{if(e.target!==q)q.focus()}}
   document.body.dataset.tab='describe';
   const ab=$('#aiBadge');if(ab){ab.onclick=()=>{if(!cfg.anthropicKey)openSettings()};renderAiBadge()}
   // hide the bottom navigation while the keyboard is up (typing in a field on the intake screens)
