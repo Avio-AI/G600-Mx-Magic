@@ -1472,7 +1472,7 @@ function renderCase(){
   for(const m of CASE.msgs){
     if(m.role==='user'){
       const vis=m.content.filter(b=>b.type==='text'&&!b.text.startsWith('<<CONTEXT>>')&&!b.text.startsWith('Tool budget reached'));
-      const phs=m.content.filter(b=>b.type==='image'&&b.photo).map(b=>b.photo);
+      const phs=m.content.filter(b=>b.type==='image'&&(b.photo||b.avio_photo)).map(b=>b.photo||b.avio_photo);
       if(!vis.length&&!phs.length)continue;aiWrap=null;
       const d=document.createElement('div');d.className='msg user';
       const t=vis.map(b=>b.text).join('\n');
@@ -2005,7 +2005,7 @@ function sendChat(){
   const last=CASE.msgs[CASE.msgs.length-1];
   const blocks=[...(t?[{type:'text',text:t}]:[]),...ph];
   if(last&&last.role==='user'){last.content.push(...blocks)}else CASE.msgs.push({role:'user',content:blocks});
-  const d=document.createElement('div');d.className='msg user';d.textContent=t||(ph.length>1?ph.length+' photos':'Photo');phThumbs(d,ph.map(b=>b.photo));$('#chatLog').appendChild(d);stickBottom=true;autoScroll();
+  const d=document.createElement('div');d.className='msg user';d.textContent=t||(ph.length>1?ph.length+' photos':'Photo');phThumbs(d,ph.map(b=>b.photo||b.avio_photo));$('#chatLog').appendChild(d);stickBottom=true;autoScroll();
   runAgent();
 }
 $('#btnSend').onclick=sendChat;
@@ -2263,7 +2263,7 @@ async function buildPdf(meta){
     font('bold',10,meta.status&&/^Closed/.test(meta.status)?C.dim:C.amber);doc.text(pclean('STATUS: '+(meta.status||'Open')),M,y+4);y+=14;
     font('normal',8.5,C.dim);doc.text(pclean(`Summary updated ${dmyt(meta.sumAt)}${meta.sumBy?' by '+meta.sumBy:''}. Full troubleshooting report available on request.`),M,y+4,{maxWidth:CW});y+=12;
     markdown(meta.summary);
-    const ids=[...new Set(CASE.msgs.flatMap(m=>m.role==='user'?m.content.filter(b=>b.type==='image'&&b.photo).map(b=>b.photo):[]))].slice(0,6);
+    const ids=[...new Set(CASE.msgs.flatMap(m=>m.role==='user'?m.content.filter(b=>b.type==='image'&&(b.photo||b.avio_photo)).map(b=>b.photo||b.avio_photo):[]))].slice(0,6);
     if(ids.length){label('PHOTOS',C.teal);let px=M,rowH=0;for(const id of ids){const v=await phGet(id);if(!v)continue;const w=Math.min(CW/3-8,160),h=w*(v.h||3)/(v.w||4);if(px+w>M+CW+1){px=M;y+=rowH+8;rowH=0}need(h+10);try{doc.addImage(phSrc(v),'JPEG',px,y,w,h)}catch(e){}px+=w+12;rowH=Math.max(rowH,h)}if(rowH)y+=rowH+8}
   }
   // ── conversation
@@ -2271,11 +2271,11 @@ async function buildPdf(meta){
   for(const m of (meta.summary?[]:CASE.msgs)){
     if(m.role==='user'){
       const t=m.content.filter(b=>b.type==='text'&&!b.text.startsWith('<<CONTEXT>>')&&!b.text.startsWith('Tool budget reached')).map(b=>b.text).join('\n');
-      const phs=m.content.filter(b=>b.type==='image'&&b.photo);
+      const phs=m.content.filter(b=>b.type==='image'&&(b.photo||b.avio_photo));
       if(!t&&!phs.length)continue;label('TECHNICIAN',C.teal);lastRole='user';
       // aircraft details (registration, serial, times, airport) live only in the page header / details line
       t.replace(/^NEW TROUBLESHOOTING CASE\n?/,'').split('\n').filter(ln=>!/^(Aircraft|Times|Airport): /.test(ln)).forEach(ln=>{if(!ln.trim()){y+=4;return}const b=ln.match(/^\s+•\s*(.*)/);b?para(b[1],{indent:16,bullet:'•'}):para(ln)});
-      {let px=M,rowH=0;for(const b of phs){const v=await phGet(b.photo);if(!v)continue;const w=Math.min(CW/2-6,230),h=w*(v.h||3)/(v.w||4);if(px+w>M+CW+1){px=M;y+=rowH+8;rowH=0}need(h+12);if(px===M&&rowH===0)y+=4;try{doc.addImage(phSrc(v),'JPEG',px,y,w,h)}catch(e){}px+=w+12;rowH=Math.max(rowH,h)}if(rowH)y+=rowH+8}
+      {let px=M,rowH=0;for(const b of phs){const v=await phGet(b.photo||b.avio_photo);if(!v)continue;const w=Math.min(CW/2-6,230),h=w*(v.h||3)/(v.w||4);if(px+w>M+CW+1){px=M;y+=rowH+8;rowH=0}need(h+12);if(px===M&&rowH===0)y+=4;try{doc.addImage(phSrc(v),'JPEG',px,y,w,h)}catch(e){}px+=w+12;rowH=Math.max(rowH,h)}if(rowH)y+=rowH+8}
     }else{
       const tools=m.content.filter(b=>b.type==='tool_use').map(b=>toolLabel(b));
       const txt=m.content.filter(b=>b.type==='text'&&b.text).map(b=>b.text).join('\n\n');
@@ -3316,7 +3316,13 @@ let PH_DB=null;const phMem=new Map();
 function phDb(){if(!PH_DB)PH_DB=new Promise((ok,no)=>{const r=indexedDB.open('mxm_photos',1);r.onupgradeneeded=()=>r.result.createObjectStore('p');r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)});return PH_DB}
 async function phPut(id,v){const db=await phDb();return new Promise((ok,no)=>{const t=db.transaction('p','readwrite');t.objectStore('p').put(v,id);t.oncomplete=()=>ok();t.onerror=()=>no(t.error)})}
 async function phLocal(id){if(phMem.has(id))return phMem.get(id);try{const db=await phDb();const v=await new Promise(ok=>{const r=db.transaction('p').objectStore('p').get(id);r.onsuccess=()=>ok(r.result||null);r.onerror=()=>ok(null)});if(v)phMem.set(id,v);return v}catch(e){return null}}
-async function phGet(id){let v=await phLocal(id);if(!v&&typeof syFetchPhoto==='function'){v=await syFetchPhoto(id).catch(()=>null);if(v){phMem.set(id,v);phPut(id,v).catch(()=>{})}}return v}
+// Avio.AI keeps its photos in its own store on this device: {id, blob, w, h, t} (same web address, so it can be read here)
+function phAvio(id){return new Promise(ok=>{let r;try{r=indexedDB.open('avio-photos',1)}catch(e){return ok(null)}
+  r.onupgradeneeded=()=>r.result.createObjectStore('p',{keyPath:'id'}); // same layout Avio.AI creates, so its own open still works
+  r.onerror=()=>ok(null);r.onsuccess=()=>{const db=r.result;let g;try{g=db.transaction('p').objectStore('p').get(id)}catch(e){db.close();return ok(null)}
+    g.onerror=()=>{db.close();ok(null)};g.onsuccess=()=>{const rec=g.result;db.close();if(!rec||!rec.blob)return ok(null);
+      const fr=new FileReader();fr.onload=()=>{const u=String(fr.result);ok({data:u.slice(u.indexOf(',')+1),mt:rec.blob.type||'image/jpeg',w:rec.w,h:rec.h,name:'',at:rec.t||Date.now()})};fr.onerror=()=>ok(null);fr.readAsDataURL(rec.blob)}}})}
+async function phGet(id){let v=await phLocal(id);if(!v){v=await phAvio(id).catch(()=>null);if(v)phMem.set(id,v)}if(!v&&typeof syFetchPhoto==='function'){v=await syFetchPhoto(id).catch(()=>null);if(v){phMem.set(id,v);phPut(id,v).catch(()=>{})}}return v}
 const phSrc=v=>`data:${v.mt};base64,${v.data}`;
 async function phFromFile(file){
   const url=URL.createObjectURL(file);
@@ -3348,9 +3354,9 @@ function phTake(which){const L=PH[which].slice();PH[which]=[];phRenderStrip(whic
 // image blocks for the API (copies; the case keeps only the photo id)
 async function phHydrate(msgs){
   const out=[];for(const m of msgs){
-    if(m.role!=='user'||!m.content.some(b=>b.type==='image'&&b.photo)){out.push(m);continue}
+    if(m.role!=='user'||!m.content.some(b=>b.type==='image'&&(b.photo||b.avio_photo))){out.push(m);continue}
     const content=[];for(const b of m.content){
-      if(b.type==='image'&&b.photo){const v=await phGet(b.photo);
+      if(b.type==='image'&&(b.photo||b.avio_photo)){const v=await phGet(b.photo||b.avio_photo);
         content.push(v?{type:'image',source:{type:'base64',media_type:v.mt,data:v.data},...(b.cache_control?{cache_control:b.cache_control}:{})}:{type:'text',text:'[A photo was attached here but is not available on this device.]',...(b.cache_control?{cache_control:b.cache_control}:{})})}
       else content.push(b)}
     out.push({...m,content})}
@@ -3360,7 +3366,7 @@ async function phHydrate(msgs){
 const SY_PH=(typeof SY_PFX!=='undefined'?SY_PFX:'x')+'_syncph';
 async function syPushPhotos(c){
   if(typeof syOn!=='function'||!syOn())return;const done=new Set(store.get(SY_PH,[]));
-  const ids=[...new Set([...(c.msgs||[]).flatMap(m=>m.role==='user'?m.content.filter(b=>b.type==='image'&&b.photo).map(b=>b.photo):[]),...(c.parts||[]).map(p=>p.photo).filter(Boolean)])].filter(id=>!done.has(id));
+  const ids=[...new Set([...(c.msgs||[]).flatMap(m=>m.role==='user'?m.content.filter(b=>b.type==='image'&&(b.photo||b.avio_photo)).map(b=>b.photo||b.avio_photo):[]),...(c.parts||[]).map(p=>p.photo).filter(Boolean)])].filter(id=>!done.has(id));
   for(const id of ids){const v=await phLocal(id);if(!v)continue;
     const r=await syApi(`cases/${SY_AC}/photos/${id}.jpg`,{method:'PUT',body:JSON.stringify({message:`${SY_AC} photo ${id}`,content:v.data})});
     if(r.ok||r.status===422){done.add(id);store.set(SY_PH,[...done])}else throw new Error(syErr(r))}
